@@ -2,12 +2,14 @@
 
 A C++20 library for polygon mesh geometry and attributes.
 
-**Status:** Repository initialized. Geometry algorithms, executable tools, bindings, format adapters, and release packages are forthcoming; the items below describe planned capabilities.
+**Status:** Initial C++20 storage implementation. Raw polygon meshes, extensible attribute channels, structural diagnostics and an installed CMake target are available in source. Python bindings, geometry algorithms, format adapters, stable interfaces and release packages are forthcoming.
+
+See [the storage contract and build instructions](docs/attributes.md), [installed consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
 
 ## Planned capabilities
 
 - Triangles, quads, n-gons, and mixed polygon meshes.
-- Mesh and attribute interfaces, including face-corner values.
+- Mesh and attribute interfaces, including multiple UV maps, skin influence channels and face-corner values.
 - Topology queries, invariant checks, and shared geometry operations.
 - Declared input requirements and reported topology changes.
 
@@ -15,7 +17,7 @@ Supported formats, operation guarantees, and platform compatibility will be docu
 
 ## Development
 
-Read [ENVIRONMENT.md](ENVIRONMENT.md) for portable configuration and the current checks. There is no native build or installable package yet. [AGENTS.md](AGENTS.md) provides focused instructions for work in this repository.
+Read [ENVIRONMENT.md](ENVIRONMENT.md) for portable configuration and repository checks, and [the storage documentation](docs/attributes.md#build-and-installed-consumer) for native build/test/install instructions. [AGENTS.md](AGENTS.md) provides focused instructions for work in this repository.
 
 ## Contributing
 
