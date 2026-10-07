@@ -1,0 +1,15 @@
+# Machine-specific configuration and working evidence
+.local/
+.scratch/
+/CMakeUserPresets.json
+/.env
+/.env.*
+!/.env.example
+
+# Private supplied documents; public docs describe their role without linking them
+/references/
+
+# Local build products
+/build/
+__pycache__/
+*.pyc

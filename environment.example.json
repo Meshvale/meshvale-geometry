@@ -1,0 +1,11 @@
+{
+  "workspace_root": null,
+  "vcpkg_root": null,
+  "cmake_executable": "cmake",
+  "cmake_generator": null,
+  "cxx_compiler": null,
+  "python_executable": "python",
+  "vcpkg_triplet": null,
+  "build_root": ".local/build",
+  "asset_corpus_root": null
+}
