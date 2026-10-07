@@ -22,3 +22,27 @@ jobs:
         run: python scripts/check-portability.py
       - name: Check documentation and environment template
         run: python scripts/check-docs.py
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure
+        run: cmake -S . -B .local/build -DCMAKE_BUILD_TYPE=Release
+      - name: Build and inspect storage
+        run: cmake --build .local/build --config Release
+      - name: Test
+        run: ctest --test-dir .local/build -C Release --output-on-failure
+      - name: Install
+        run: cmake --install .local/build --config Release --prefix .local/install
+      - name: Configure installed consumer
+        run: cmake -S examples/consumer -B .local/consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+      - name: Build installed consumer
+        run: cmake --build .local/consumer --config Release
+      - name: Test installed consumer
+        run: ctest --test-dir .local/consumer -C Release --output-on-failure
