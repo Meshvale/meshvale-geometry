@@ -23,9 +23,23 @@ target_include_directories(meshvale_geometry INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
+find_package(Threads REQUIRED)
+add_library(meshvale_geometry_editing STATIC src/editable_mesh.cpp)
+add_library(meshvale::editing ALIAS meshvale_geometry_editing)
+set_target_properties(meshvale_geometry_editing PROPERTIES
+  EXPORT_NAME editing POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(meshvale_geometry_editing PUBLIC meshvale::geometry Threads::Threads)
+if(MSVC)
+  target_compile_options(meshvale_geometry_editing PRIVATE /W4 /WX)
+else()
+  target_compile_options(meshvale_geometry_editing PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 install(TARGETS meshvale_geometry EXPORT MeshvaleGeometryTargets)
+install(TARGETS meshvale_geometry_editing EXPORT MeshvaleGeometryTargets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(EXPORT MeshvaleGeometryTargets NAMESPACE meshvale::
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
@@ -35,7 +49,7 @@ configure_package_config_file(cmake/MeshvaleGeometryConfig.cmake.in
   PATH_VARS CMAKE_INSTALL_DATADIR)
 write_basic_package_version_file(
   "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfigVersion.cmake"
-  VERSION "${MESHVALE_GEOMETRY_VERSION}" COMPATIBILITY ExactVersion ARCH_INDEPENDENT)
+  VERSION "${MESHVALE_GEOMETRY_VERSION}" COMPATIBILITY ExactVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfigVersion.cmake"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
@@ -84,19 +98,28 @@ if(BUILD_TESTING)
       target_sources(meshvale_geometry_header_checks PRIVATE "${meshvale_probe}")
     endforeach()
   endforeach()
+  set(meshvale_editor_probe "${CMAKE_CURRENT_BINARY_DIR}/editable_mesh_h.cpp")
+  file(WRITE "${meshvale_editor_probe}"
+    "#include <meshvale/geometry/editable_mesh.h>\n#include <meshvale/geometry/editable_mesh.h>\n")
+  target_sources(meshvale_geometry_header_checks PRIVATE "${meshvale_editor_probe}")
   add_executable(meshvale_geometry_tests tests/storage.cpp)
   target_link_libraries(meshvale_geometry_tests PRIVATE meshvale::geometry)
   add_executable(meshvale_topology_tests tests/topology.cpp)
   target_link_libraries(meshvale_topology_tests PRIVATE meshvale::geometry)
+  add_executable(meshvale_editing_tests tests/editing.cpp)
+  target_link_libraries(meshvale_editing_tests PRIVATE meshvale::editing)
   if(MSVC)
     target_compile_options(meshvale_geometry_header_checks PRIVATE /W4 /WX)
     target_compile_options(meshvale_geometry_tests PRIVATE /W4 /WX)
     target_compile_options(meshvale_topology_tests PRIVATE /W4 /WX)
+    target_compile_options(meshvale_editing_tests PRIVATE /W4 /WX)
   else()
     target_compile_options(meshvale_geometry_header_checks PRIVATE -Wall -Wextra -Wpedantic -Werror)
     target_compile_options(meshvale_geometry_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     target_compile_options(meshvale_topology_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_compile_options(meshvale_editing_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
   endif()
   add_test(NAME attribute_storage COMMAND meshvale_geometry_tests)
   add_test(NAME polygon_topology COMMAND meshvale_topology_tests)
+  add_test(NAME pooled_editing COMMAND meshvale_editing_tests)
 endif()

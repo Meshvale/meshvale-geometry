@@ -50,6 +50,53 @@ jobs:
         run: cmake --build .local/consumer --config Release
       - name: Test installed consumer
         run: ctest --test-dir .local/consumer -C Release --output-on-failure
+      - name: Configure installed editing consumer
+        run: cmake -S examples/editing-consumer -B .local/editing-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+      - name: Build installed editing consumer
+        run: cmake --build .local/editing-consumer --config Release
+      - name: Test installed editing consumer
+        run: ctest --test-dir .local/editing-consumer -C Release --output-on-failure
+
+  native-sanitizers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Record sanitizer compiler
+        run: clang++ --version
+      - name: Configure address and undefined behavior checks
+        run: >-
+          cmake -S . -B .local/sanitizers -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++
+          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
+          "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Build instrumented native tests
+        run: cmake --build .local/sanitizers --parallel 2
+      - name: Run instrumented native tests
+        run: ctest --test-dir .local/sanitizers --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+  native-thread-sanitizer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Record thread sanitizer compiler
+        run: clang++ --version
+      - name: Configure race detection separately from address checks
+        run: >-
+          cmake -S . -B .local/thread-sanitizer -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++
+          "-DCMAKE_CXX_FLAGS=-fsanitize=thread -O1 -g -fno-omit-frame-pointer"
+          "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread"
+      - name: Build instrumented native tests
+        run: cmake --build .local/thread-sanitizer --parallel 2
+      - name: Run instrumented native tests
+        run: ctest --test-dir .local/thread-sanitizer --output-on-failure
+        env:
+          TSAN_OPTIONS: halt_on_error=1
 
   python:
     strategy:
@@ -76,6 +123,7 @@ jobs:
       - name: Install native producer for independent binding consumer
         run: |
           cmake -S . -B .local/python-native -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build .local/python-native --config Release
           cmake --install .local/python-native --config Release --prefix .local/python-prefix
       - name: Build independent installed-header consumer wheel
         run: python -m pip wheel examples/record-consumer --no-deps --wheel-dir .local/record-wheels "--config-settings=cmake.define.CMAKE_PREFIX_PATH=${{ github.workspace }}/.local/python-prefix"

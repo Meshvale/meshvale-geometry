@@ -9,6 +9,8 @@
 
 ### Added
 
+- Native pooled editing through `editable_mesh.h` and the compiled `meshvale::editing` target: typed checked element/property objects, transactional creation/deletion, explicit non-manifold/wire/parallel-edge incidence, owned revisioned snapshots, forks and dense correspondence.
+- Deterministic CPU bounds computation with a shared worker budget, serial reasons and cancellation; editing properties cover all seven scalar types, multiple UV sets, ragged influences and explicit missing/default/required-row policies.
 - Raw variable-length polygon storage with non-mutating structural diagnostics.
 - Named typed vertex, face and corner attributes, including multiple UV sets, missing values and variable-length skin influence data.
 - Owned polygon incidence snapshots, non-manifold edge/vertex-fan diagnostics, existing winding checks, face/boundary components and explicit inspection coverage.
