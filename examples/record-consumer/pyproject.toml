@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["scikit-build-core==1.1.1", "nanobind==3.1.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "meshvale-record-consumer"
+version = "0.0.0"
+description = "Installed native consumer of Meshvale mesh buffer records"
+requires-python = ">=3.10"
+
+[tool.scikit-build]
+minimum-version = "1.1"
+wheel.packages = []

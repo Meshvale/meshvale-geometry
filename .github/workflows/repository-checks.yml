@@ -46,3 +46,33 @@ jobs:
         run: cmake --build .local/consumer --config Release
       - name: Test installed consumer
         run: ctest --test-dir .local/consumer -C Release --output-on-failure
+
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.14"]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build source distribution and wheel from it
+        run: |
+          python -m pip install build==1.6.1
+          python -m build --outdir .local/dist
+      - name: Inspect archive contents
+        shell: bash
+        run: python scripts/check-package.py .local/dist/*.whl .local/dist/*.tar.gz
+      - name: Install native producer for independent binding consumer
+        run: |
+          cmake -S . -B .local/python-native -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --install .local/python-native --config Release --prefix .local/python-prefix
+      - name: Build independent installed-header consumer wheel
+        run: python -m pip wheel examples/record-consumer --no-deps --wheel-dir .local/record-wheels "--config-settings=cmake.define.CMAKE_PREFIX_PATH=${{ github.workspace }}/.local/python-prefix"
+      - name: Test fresh installed wheels, lifetimes and both import orders
+        shell: bash
+        run: python scripts/test-installed.py --geometry-wheel .local/dist/*.whl --consumer-wheel .local/record-wheels/*.whl --numpy
