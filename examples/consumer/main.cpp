@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <meshvale/geometry/mesh.hpp>
-#include <meshvale/geometry/topology.hpp>
+#include <meshvale/geometry/mesh.h>
+#include <meshvale/geometry/topology.h>
 
 int main() {
     meshvale::geometry::Mesh mesh;

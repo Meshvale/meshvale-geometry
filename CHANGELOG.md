@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+
+- Canonical C++ headers use `.h`; existing `.hpp` includes remain installed forwarding headers with the same definitions and API names.
+
 ### Added
 
 - Raw variable-length polygon storage with non-mutating structural diagnostics.

@@ -1,12 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.24)
 project(MeshvaleRecordConsumer LANGUAGES CXX)
+set(CMAKE_CXX_EXTENSIONS OFF)
 find_package(MeshvaleGeometry 0.0.0 EXACT CONFIG REQUIRED)
 find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
 execute_process(COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
   OUTPUT_VARIABLE consumer_nanobind_dir OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
 find_package(nanobind 3.1 CONFIG REQUIRED HINTS "${consumer_nanobind_dir}")
 nanobind_add_module(meshvale_record_consumer NB_STATIC NB_DOMAIN meshvale_record_consumer bindings.cpp)
+foreach(consumer_extension IN ITEMS h hpp)
+  set(consumer_probe "${CMAKE_CURRENT_BINARY_DIR}/record_${consumer_extension}.cpp")
+  file(WRITE "${consumer_probe}"
+    "#include <meshvale/geometry/python/record.${consumer_extension}>\n#include <meshvale/geometry/python/record.${consumer_extension}>\n")
+  target_sources(meshvale_record_consumer PRIVATE "${consumer_probe}")
+endforeach()
 target_link_libraries(meshvale_record_consumer PRIVATE meshvale::geometry)
 if(MSVC)
   target_compile_options(meshvale_record_consumer PRIVATE /W4 /WX)

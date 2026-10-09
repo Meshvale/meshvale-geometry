@@ -1,6 +1,8 @@
 # Polygon and attribute storage
 
-This development API stores raw polygon data and extensible attributes. The public types in `include/meshvale/geometry/mesh.hpp` and `attributes.hpp` own their exact C++ shapes. There is no stable API/ABI or software release yet.
+This development API stores raw polygon data and extensible attributes. The public types in `include/meshvale/geometry/mesh.h` and `attributes.h` own their exact C++ shapes. There is no stable API/ABI or software release yet.
+
+Canonical public headers use `.h`, including `topology.h` and the optional Python/nanobind adapter `python/record.h`. The previous `.hpp` paths remain installed forwarding headers that include the same definitions, with no separate types or runtime. New code uses canonical paths; existing C++ names and Python record/wire behavior are retained. Header conversion and Google formatting do not imply complete naming/style compliance or stable ABI. Each header is compiled independently; the Python adapter requires its documented Python/nanobind dependencies.
 
 ## Mesh representation
 

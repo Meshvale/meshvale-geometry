@@ -43,7 +43,9 @@ def inspect(path):
         assert "python/meshvale_geometry/_version.py" in names
         assert ".clang-format" in names
         assert "python/bindings.cpp" in names
-        assert "include/meshvale/geometry/python/record.hpp" in names
+        for header in ["attributes", "mesh", "topology", "python/record"]:
+            for extension in ["h", "hpp"]:
+                assert "include/meshvale/geometry/" + header + "." + extension in names
         assert "tests/python/test_mesh.py" in names
         assert "python/meshvale_reports/report-v1.schema.json" in names
         assert "tests/reports/test_reports.py" in names

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-#include <meshvale/geometry/topology.hpp>
+#include <meshvale/geometry/topology.h>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
