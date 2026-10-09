@@ -28,7 +28,7 @@ def inspect(path):
         with tarfile.open(path, "r:gz") as archive:
             members = archive.getmembers()
         names = []
-        allowed = {"CMakeLists.txt","pyproject.toml","README.md","AGENTS.md","ENVIRONMENT.md",
+        allowed = {".clang-format","CMakeLists.txt","pyproject.toml","README.md","AGENTS.md","ENVIRONMENT.md",
                    "environment.example.json","LICENSE","NOTICE","CHANGELOG.md","PKG-INFO"}
         directories = {"cmake","include","python","docs","examples","tests","licenses"}
         for member in members:
@@ -41,6 +41,7 @@ def inspect(path):
             assert not any(part in {".local",".scratch","__pycache__","references","build",".github"} for part in parts), name
             assert not name.endswith((".pyc",".pyd",".so",".obj",".log")), name
         assert "python/meshvale_geometry/_version.py" in names
+        assert ".clang-format" in names
         assert "python/bindings.cpp" in names
         assert "include/meshvale/geometry/python/record.hpp" in names
         assert "tests/python/test_mesh.py" in names

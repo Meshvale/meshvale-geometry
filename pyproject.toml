@@ -26,7 +26,7 @@ wheel.packages = ["python/meshvale_geometry", "python/meshvale_reports"]
 install.components = ["python"]
 cmake.define.MESHVALE_GEOMETRY_PYTHON = true
 cmake.define.BUILD_TESTING = false
-sdist.include = ["CMakeLists.txt", "pyproject.toml", "README.md", "AGENTS.md", "ENVIRONMENT.md", "environment.example.json", "LICENSE", "NOTICE", "CHANGELOG.md", "cmake/**", "include/**", "python/bindings.cpp", "python/meshvale_geometry/*.py", "python/meshvale_reports/*.py", "python/meshvale_reports/*.json", "docs/**", "examples/**", "tests/**", "licenses/*.txt", "scripts/*.py"]
+sdist.include = [".clang-format", "CMakeLists.txt", "pyproject.toml", "README.md", "AGENTS.md", "ENVIRONMENT.md", "environment.example.json", "LICENSE", "NOTICE", "CHANGELOG.md", "cmake/**", "include/**", "python/bindings.cpp", "python/meshvale_geometry/*.py", "python/meshvale_reports/*.py", "python/meshvale_reports/*.json", "docs/**", "examples/**", "tests/**", "licenses/*.txt", "scripts/*.py"]
 sdist.inclusion-mode = "explicit"
 sdist.exclude = ["**/__pycache__/**", "**/*.pyc", "**/.local/**", "**/.scratch/**", "**/build/**", "**/references/**"]
 
