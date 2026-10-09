@@ -203,6 +203,10 @@ worker threads across overlapping calls. External caller threads are outside
 that cap. `ActiveWorkers()`/`PeakWorkers()` count reserved worker slots;
 `BoundsResult::workers_used` reports threads successfully created and joined
 for that call. Reservations are released on cancellation and exceptions.
+Cancellation is cooperative: a request observed before the completion check
+throws `kCanceled`; a request racing completed work can return a complete result.
+Observing reserved workers does not pause that work or guarantee its remaining
+duration.
 
 A zero configured budget selects hardware concurrency, with a minimum of one.
 The default parallel threshold is 65,536 live vertices. Worker count is also
