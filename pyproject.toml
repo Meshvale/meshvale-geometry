@@ -13,17 +13,20 @@ license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "licenses/*.txt"]
 authors = [{name = "Meshvale contributors"}]
 
+[project.optional-dependencies]
+reports = ["jsonschema==4.26.0"]
+
 [project.urls]
 Repository = "https://github.com/Meshvale/meshvale-geometry"
 Issues = "https://github.com/Meshvale/meshvale-geometry/issues"
 
 [tool.scikit-build]
 minimum-version = "1.1"
-wheel.packages = ["python/meshvale_geometry"]
+wheel.packages = ["python/meshvale_geometry", "python/meshvale_reports"]
 install.components = ["python"]
 cmake.define.MESHVALE_GEOMETRY_PYTHON = true
 cmake.define.BUILD_TESTING = false
-sdist.include = ["CMakeLists.txt", "pyproject.toml", "README.md", "AGENTS.md", "ENVIRONMENT.md", "environment.example.json", "LICENSE", "NOTICE", "CHANGELOG.md", "cmake/**", "include/**", "python/bindings.cpp", "python/meshvale_geometry/*.py", "docs/**", "examples/**", "tests/**", "licenses/*.txt", "scripts/*.py"]
+sdist.include = ["CMakeLists.txt", "pyproject.toml", "README.md", "AGENTS.md", "ENVIRONMENT.md", "environment.example.json", "LICENSE", "NOTICE", "CHANGELOG.md", "cmake/**", "include/**", "python/bindings.cpp", "python/meshvale_geometry/*.py", "python/meshvale_reports/*.py", "python/meshvale_reports/*.json", "docs/**", "examples/**", "tests/**", "licenses/*.txt", "scripts/*.py"]
 sdist.inclusion-mode = "explicit"
 sdist.exclude = ["**/__pycache__/**", "**/*.pyc", "**/.local/**", "**/.scratch/**", "**/build/**", "**/references/**"]
 

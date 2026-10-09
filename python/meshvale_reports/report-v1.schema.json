@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:meshvale:report-envelope:1",
+  "$comment": "SPDX-License-Identifier: Apache-2.0. Development interface; schema versions are independent of package versions.",
+  "title": "Meshvale report and batch envelopes, version 1",
+  "oneOf": [{"$ref": "#/$defs/report"}, {"$ref": "#/$defs/batch"}],
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$", "maxLength": 256},
+    "text": {"type": "string", "minLength": 1},
+    "reason": {"type": ["string", "null"], "minLength": 1},
+    "u64": {"type": "integer", "minimum": 0, "maximum": 18446744073709551615},
+    "u32": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "domain": {"enum": ["vertex", "face", "corner"]},
+    "ids": {"type": "array", "items": {"$ref": "#/$defs/id"}, "uniqueItems": true},
+    "hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "tool": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version"],
+      "properties": {"name": {"$ref": "#/$defs/text"}, "version": {"$ref": "#/$defs/text"}}
+    },
+    "input": {
+      "type": "object", "additionalProperties": false, "required": ["id", "sha256"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "sha256": {"anyOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]}}
+    },
+    "scope": {
+      "type": "object", "additionalProperties": false, "required": ["snapshot", "mesh", "subject"],
+      "properties": {
+        "snapshot": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "mesh": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "subject": {"$ref": "#/$defs/text"}
+      }
+    },
+    "mesh_ref": {
+      "type": "object", "additionalProperties": false, "required": ["snapshot", "mesh"],
+      "properties": {"snapshot": {"$ref": "#/$defs/id"}, "mesh": {"$ref": "#/$defs/id"}}
+    },
+    "element": {
+      "type": "object", "additionalProperties": false, "required": ["domain", "index"],
+      "properties": {"domain": {"$ref": "#/$defs/domain"}, "index": {"$ref": "#/$defs/u64"}}
+    },
+    "target": {
+      "type": "object", "additionalProperties": false, "required": ["snapshot", "mesh", "domain", "index"],
+      "properties": {
+        "snapshot": {"$ref": "#/$defs/id"}, "mesh": {"$ref": "#/$defs/id"},
+        "domain": {"$ref": "#/$defs/domain"}, "index": {"$ref": "#/$defs/u64"}
+      }
+    },
+    "operation": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "name", "version", "options", "targets"],
+      "properties": {
+        "kind": {"enum": ["inspection", "repair", "conversion"]},
+        "name": {"$ref": "#/$defs/text"}, "version": {"$ref": "#/$defs/text"},
+        "options": {"type": "object"}, "targets": {"type": "array", "items": {"$ref": "#/$defs/target"}}
+      }
+    },
+    "execution": {
+      "type": "object", "additionalProperties": false, "required": ["outcome", "stage", "reason"],
+      "properties": {
+        "outcome": {"enum": ["completed", "failed", "cancelled"]},
+        "stage": {"enum": ["import", "inspect", "repair", "verify", "export", "report", "complete"]},
+        "reason": {"$ref": "#/$defs/reason"}
+      }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false, "required": ["outcome", "snapshot"],
+      "properties": {
+        "outcome": {"enum": ["accepted", "unchanged", "rejected", "not-attempted"]},
+        "snapshot": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]}
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false, "required": ["name", "version", "required_checks", "outcome"],
+      "properties": {
+        "name": {"$ref": "#/$defs/text"}, "version": {"$ref": "#/$defs/text"},
+        "required_checks": {"$ref": "#/$defs/ids"}, "outcome": {"enum": ["passed", "failed", "incomplete"]}
+      }
+    },
+    "mesh": {
+      "type": "object", "additionalProperties": false, "required": ["id", "vertex_count", "face_count", "corner_count"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "vertex_count": {"$ref": "#/$defs/u64"},
+        "face_count": {"$ref": "#/$defs/u64"}, "corner_count": {"$ref": "#/$defs/u64"}
+      }
+    },
+    "snapshot": {
+      "type": "object", "additionalProperties": false, "required": ["id", "role", "meshes"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "role": {"enum": ["input", "candidate", "output"]},
+        "meshes": {"type": "array", "items": {"$ref": "#/$defs/mesh"}}
+      }
+    },
+    "diagnostic": {
+      "type": "object", "additionalProperties": false, "required": ["id", "code", "severity", "message", "scope", "element", "data"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "code": {"$ref": "#/$defs/text"}, "severity": {"enum": ["info", "warning", "error"]},
+        "message": {"$ref": "#/$defs/text"}, "scope": {"$ref": "#/$defs/scope"},
+        "element": {"anyOf": [{"$ref": "#/$defs/element"}, {"type": "null"}]}, "data": {"type": "object"}
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "check", "version", "scope", "status", "finding", "reason", "diagnostics"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "check": {"$ref": "#/$defs/text"}, "version": {"$ref": "#/$defs/text"},
+        "scope": {"$ref": "#/$defs/scope"}, "status": {"enum": ["performed", "unsupported", "skipped", "failed"]},
+        "finding": {"enum": ["passed", "failed", null]}, "reason": {"$ref": "#/$defs/reason"}, "diagnostics": {"$ref": "#/$defs/ids"}
+      }
+    },
+    "map": {
+      "type": "object", "additionalProperties": false, "required": ["id", "from", "to", "domain", "kind", "entries"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "from": {"$ref": "#/$defs/mesh_ref"}, "to": {"$ref": "#/$defs/mesh_ref"},
+        "domain": {"$ref": "#/$defs/domain"}, "kind": {"enum": ["identity", "explicit"]},
+        "entries": {"anyOf": [{"type": "array", "items": {"anyOf": [{"$ref": "#/$defs/u64"}, {"type": "null"}, {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/u64"}}]}}, {"type": "null"}]}
+      }
+    },
+    "feature": {
+      "type": "object", "additionalProperties": false, "required": ["kind", "name", "domain", "set_index"],
+      "properties": {
+        "kind": {"enum": ["geometry", "attribute", "resource", "scene"]}, "name": {"$ref": "#/$defs/text"},
+        "domain": {"anyOf": [{"$ref": "#/$defs/domain"}, {"type": "null"}]},
+        "set_index": {"anyOf": [{"$ref": "#/$defs/u32"}, {"type": "null"}]}
+      }
+    },
+    "preservation": {
+      "type": "object", "additionalProperties": false, "required": ["feature", "from", "to", "outcome", "reason", "maps"],
+      "properties": {
+        "feature": {"$ref": "#/$defs/feature"}, "from": {"$ref": "#/$defs/scope"}, "to": {"$ref": "#/$defs/scope"},
+        "outcome": {"enum": ["preserved", "converted", "unsupported", "not-checked"]},
+        "reason": {"$ref": "#/$defs/reason"}, "maps": {"$ref": "#/$defs/ids"}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false, "required": ["id", "sha256"],
+      "properties": {"id": {"$ref": "#/$defs/id"}, "sha256": {"$ref": "#/$defs/hash"}}
+    },
+    "publication": {
+      "type": "object", "additionalProperties": false,
+      "required": ["requested", "outcome", "snapshot", "artifacts", "verified", "reason"],
+      "properties": {
+        "requested": {"type": "boolean"}, "outcome": {"enum": ["published", "failed", "cancelled", "not-attempted", "not-requested"]},
+        "snapshot": {"anyOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+        "artifacts": {"type": "array", "items": {"$ref": "#/$defs/artifact"}},
+        "verified": {"type": "boolean"}, "reason": {"$ref": "#/$defs/reason"}
+      }
+    },
+    "extensions": {
+      "type": "object", "patternProperties": {"^[A-Za-z][A-Za-z0-9_-]*(\\.[A-Za-z][A-Za-z0-9_-]*)+$": {"type": "object"}},
+      "additionalProperties": false
+    },
+    "report": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema", "tool", "input", "operation", "execution", "candidate", "profile", "snapshots", "diagnostics", "coverage", "maps", "preservation", "publication", "extensions"],
+      "properties": {
+        "schema": {"const": "meshvale.report/1"}, "tool": {"$ref": "#/$defs/tool"},
+        "input": {"anyOf": [{"$ref": "#/$defs/input"}, {"type": "null"}]},
+        "operation": {"anyOf": [{"$ref": "#/$defs/operation"}, {"type": "null"}]},
+        "execution": {"$ref": "#/$defs/execution"}, "candidate": {"$ref": "#/$defs/candidate"}, "profile": {"$ref": "#/$defs/profile"},
+        "snapshots": {"type": "array", "items": {"$ref": "#/$defs/snapshot"}},
+        "diagnostics": {"type": "array", "items": {"$ref": "#/$defs/diagnostic"}},
+        "coverage": {"type": "array", "items": {"$ref": "#/$defs/coverage"}}, "maps": {"type": "array", "items": {"$ref": "#/$defs/map"}},
+        "preservation": {"type": "array", "items": {"$ref": "#/$defs/preservation"}},
+        "publication": {"$ref": "#/$defs/publication"}, "extensions": {"$ref": "#/$defs/extensions"}
+      }
+    },
+    "job": {
+      "type": "object", "additionalProperties": false, "required": ["id", "input", "outcome", "report", "reason"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "input": {"$ref": "#/$defs/input"}, "outcome": {"enum": ["attempted", "not-attempted"]},
+        "report": {"anyOf": [{"$ref": "#/$defs/report"}, {"type": "null"}]}, "reason": {"$ref": "#/$defs/reason"}
+      }
+    },
+    "batch": {
+      "type": "object", "additionalProperties": false, "required": ["schema", "tool", "mode", "execution", "jobs", "exit_code", "extensions"],
+      "properties": {
+        "schema": {"const": "meshvale.batch/1"}, "tool": {"$ref": "#/$defs/tool"}, "mode": {"enum": ["continue", "fail-fast"]},
+        "execution": {"$ref": "#/$defs/execution"}, "jobs": {"type": "array", "items": {"$ref": "#/$defs/job"}},
+        "exit_code": {"enum": [0, 1, 2, 130]}, "extensions": {"$ref": "#/$defs/extensions"}
+      }
+    }
+  }
+}

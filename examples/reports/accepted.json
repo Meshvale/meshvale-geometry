@@ -1,0 +1,35 @@
+{
+  "schema": "meshvale.report/1",
+  "tool": {"name": "example-repair", "version": "0.0.0"},
+  "input": {"id": "example-source", "sha256": null},
+  "operation": {"kind": "repair", "name": "remove-duplicate-faces", "version": "1", "options": {"row_local_attributes": []}, "targets": [{"snapshot": "input", "mesh": "surface", "domain": "face", "index": 1}]},
+  "execution": {"outcome": "completed", "stage": "complete", "reason": null},
+  "candidate": {"outcome": "accepted", "snapshot": "candidate"},
+  "profile": {"name": "example-storage", "version": "1", "required_checks": ["candidate-storage", "reload"], "outcome": "passed"},
+  "snapshots": [
+    {"id": "input", "role": "input", "meshes": [{"id": "surface", "vertex_count": 3, "face_count": 2, "corner_count": 6}]},
+    {"id": "candidate", "role": "candidate", "meshes": [{"id": "surface", "vertex_count": 3, "face_count": 1, "corner_count": 3}]},
+    {"id": "output", "role": "output", "meshes": [{"id": "surface", "vertex_count": 3, "face_count": 1, "corner_count": 3}]}
+  ],
+  "diagnostics": [],
+  "coverage": [
+    {"id": "candidate-storage", "check": "mesh.storage", "version": "1", "scope": {"snapshot": "candidate", "mesh": "surface", "subject": "storage"}, "status": "performed", "finding": "passed", "reason": null, "diagnostics": []},
+    {"id": "reload", "check": "export.reload", "version": "1", "scope": {"snapshot": "output", "mesh": "surface", "subject": "roundtrip"}, "status": "performed", "finding": "passed", "reason": null, "diagnostics": []},
+    {"id": "intersection", "check": "mesh.self-intersection", "version": "1", "scope": {"snapshot": "candidate", "mesh": "surface", "subject": "geometry"}, "status": "unsupported", "finding": null, "reason": "This example profile excludes geometric intersection tests.", "diagnostics": []}
+  ],
+  "maps": [
+    {"id": "repair-vertices", "from": {"snapshot": "input", "mesh": "surface"}, "to": {"snapshot": "candidate", "mesh": "surface"}, "domain": "vertex", "kind": "identity", "entries": null},
+    {"id": "repair-faces", "from": {"snapshot": "input", "mesh": "surface"}, "to": {"snapshot": "candidate", "mesh": "surface"}, "domain": "face", "kind": "explicit", "entries": [0, 0]},
+    {"id": "repair-corners", "from": {"snapshot": "input", "mesh": "surface"}, "to": {"snapshot": "candidate", "mesh": "surface"}, "domain": "corner", "kind": "explicit", "entries": [0, 1, 2, 0, 1, 2]},
+    {"id": "export-vertices", "from": {"snapshot": "candidate", "mesh": "surface"}, "to": {"snapshot": "output", "mesh": "surface"}, "domain": "vertex", "kind": "identity", "entries": null},
+    {"id": "export-faces", "from": {"snapshot": "candidate", "mesh": "surface"}, "to": {"snapshot": "output", "mesh": "surface"}, "domain": "face", "kind": "identity", "entries": null},
+    {"id": "export-corners", "from": {"snapshot": "candidate", "mesh": "surface"}, "to": {"snapshot": "output", "mesh": "surface"}, "domain": "corner", "kind": "identity", "entries": null}
+  ],
+  "preservation": [
+    {"feature": {"kind": "attribute", "name": "uv0", "domain": "corner", "set_index": 0}, "from": {"snapshot": "input", "mesh": "surface", "subject": "texcoord"}, "to": {"snapshot": "candidate", "mesh": "surface", "subject": "texcoord"}, "outcome": "preserved", "reason": null, "maps": ["repair-corners"]},
+    {"feature": {"kind": "attribute", "name": "uv1", "domain": "corner", "set_index": 1}, "from": {"snapshot": "input", "mesh": "surface", "subject": "texcoord"}, "to": {"snapshot": "candidate", "mesh": "surface", "subject": "texcoord"}, "outcome": "preserved", "reason": null, "maps": ["repair-corners"]},
+    {"feature": {"kind": "attribute", "name": "weights", "domain": "vertex", "set_index": null}, "from": {"snapshot": "input", "mesh": "surface", "subject": "variable-influence-rows"}, "to": {"snapshot": "candidate", "mesh": "surface", "subject": "variable-influence-rows"}, "outcome": "preserved", "reason": null, "maps": ["repair-vertices"]}
+  ],
+  "publication": {"requested": true, "outcome": "published", "snapshot": "output", "artifacts": [{"id": "example-bundle", "sha256": "0000000000000000000000000000000000000000000000000000000000000000"}], "verified": true, "reason": null},
+  "extensions": {"meshvale.example": {"illustrative_only": true}}
+}
