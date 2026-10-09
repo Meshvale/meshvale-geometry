@@ -2,9 +2,11 @@
 
 A C++20 library for polygon mesh geometry and attributes.
 
-**Status:** Initial C++20 storage implementation. Raw polygon meshes, extensible attribute channels, structural diagnostics and an installed CMake target are available in source. Python bindings, geometry algorithms, format adapters, stable interfaces and release packages are forthcoming.
+**Status:** Development C++20 library with raw polygon storage, extensible attribute channels, scoped topology inspection and an installed CMake target. Python bindings, further geometry operations, format adapters, stable interfaces and release packages are forthcoming.
 
-See [the storage contract and build instructions](docs/attributes.md), [installed consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
+See [the storage contract and build instructions](docs/attributes.md), [topology inspection contract](docs/topology.md), [installed consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
+
+Topology inspection retains every edge occurrence, detects disconnected vertex fans, reports existing winding conflicts and classifies boundary graphs. It returns an owned snapshot and explicit check coverage, including blocked malformed topology and unsupported geometric/solid checks. Non-manifold input is retained; inspection does not normalize or repair it.
 
 ## Planned capabilities
 

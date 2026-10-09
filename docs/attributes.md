@@ -8,6 +8,8 @@ This development API stores raw polygon data and extensible attributes. The publ
 
 Indices are current storage positions, not persistent source identities. Mutating a vector can invalidate references and indices. No borrowed-view lifetime or compaction guarantee is provided by this initial API. Copying a mesh owns independent copies of its arrays.
 
+`Mesh` is a raw data record, not an incremental editor. Inserting or erasing position/corner/face rows directly can invalidate connectivity and misassociate attributes, even when counts and index ranges still pass storage checks. Structural edits must rebuild every affected loop and domain channel, including dense/ragged values and presence masks, with correspondence. Copy-producing operations can construct and verify a complete candidate before accepting it. A general transactional editor with durable element handles is future work; no safe arbitrary in-place insertion/deletion interface is currently provided.
+
 ## Extensible channels
 
 An `Attribute` has a domain, name, open semantic label, optional set index, component width, typed values and optional metadata. Supported domains are vertex, face and corner. A `(domain, name)` pair is unique within a mesh; identical names in different domains are distinct. Semantic labels and metadata are descriptive and do not imply that an operation understands the channel.
@@ -30,6 +32,8 @@ An optional presence mask marks each row authored (`1`) or missing (`0`). An abs
 `inspect_attribute` checks channel shape, offsets and presence encoding for an expected row count. `inspect_storage` also checks finite positions, face storage, minimum face size, vertex index ranges, domain validity and channel-name uniqueness. Diagnostics identify a code, subject and optional element position.
 
 Passing these checks establishes only this storage contract. It does not establish manifoldness, planarity, self-intersection freedom, valid skin bindings, paired joint/weight row lengths, normalized weights, unit normals, or a supported attribute transfer policy. Generic attribute payloads remain inspectable even when a semantic consumer would reject them. Skin/skeleton references and transforms need an asset-level owner. A consumer must validate the semantics it uses and explicitly preserve, transform, reject or report unsupported channels.
+
+The separate [topology inspection interface](topology.md) builds an owned general-incidence snapshot and reports scoped combinatorial checks. Storage inspection remains independent; passing either contract does not establish global geometric or solid validity.
 
 ## Build and installed consumer
 
