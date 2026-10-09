@@ -15,4 +15,6 @@ python scripts/check-portability.py
 python scripts/check-docs.py
 ```
 
+For C++ formatting, use an isolated tool environment with `clang-format==23.1.3`, then run `python scripts/check-cpp-format.py`. The check covers Git-visible project `.h`, `.hpp` and `.cpp` files and uses the repository's Google/C++20 configuration. Pass `--formatter` when the executable is outside the current PATH; machine-specific locations stay in ignored configuration. Formatting is checked independently of semantic/native tests and remaining public naming migration.
+
 Public files use repository-relative links, public URLs, tool names, and symbolic environment values. Run these checks before committing or publishing. The portability check scans working files and staged content for machine paths and private local files; it does not scan all secrets or determine whether a document should be public. Review public content and package contents separately.
