@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Projection of MESHVALE-CPP-001; formatting does not validate API semantics.
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++20
