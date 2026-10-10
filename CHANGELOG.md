@@ -17,7 +17,11 @@
   Explicit charges survive caller-context destruction; failed growth preserves
   prior charges and cancellation never blocks shrink or cleanup.
 
-- Native exact represented-planar polygon triangulation through `triangulation.h` and `meshvale::triangulation`, with complete Mesh/face/corner correspondence, bit-preserving channel transfer, shared CPU worker/payload admission and cooperative cancellation. The single-loop profile supports up to 4096 corners per face; approximate planarity and Python conversion bindings are forthcoming.
+- Python `triangulate` for canonical immutable snapshots, frozen outcomes with
+  readonly owned uint64 correspondence, shared native execution contexts and
+  thread-requested cancellation during GIL-released native computation.
+
+- Native exact represented-planar polygon triangulation through `triangulation.h` and `meshvale::triangulation`, with complete Mesh/face/corner correspondence, bit-preserving channel transfer, shared CPU worker/payload admission and cooperative cancellation. The single-loop profile supports up to 4096 corners per face; approximate planarity is forthcoming.
 
 - A manually dispatched portable packaging pilot for ordinary CPython 3.13 on Linux x86_64 (glibc 2.28) and Windows x64, with repaired-wheel tests and independently rebuilt source archives retained as development CI artifacts.
 

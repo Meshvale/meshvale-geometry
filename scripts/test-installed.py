@@ -33,6 +33,7 @@ if __name__ == "__main__":
             "print('Declarative report consumption loads no native Geometry or validator')",cwd=directory)
         run(python,"-I","-m","unittest","discover","-s",root/"tests/python","-v",cwd=directory)
         run(python,"-I",root/"examples/python/inspect_mesh.py",cwd=directory)
+        run(python,"-I",root/"examples/python/triangulate_mesh.py",cwd=directory)
         for order in ["geometry-first","consumer-first"]:
             run(python,"-I",root/"examples/record-consumer/check.py",order,cwd=directory)
         if options.numpy:

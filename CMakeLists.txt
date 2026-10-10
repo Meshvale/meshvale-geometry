@@ -87,13 +87,21 @@ if(MESHVALE_GEOMETRY_PYTHON)
   execute_process(COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
     OUTPUT_VARIABLE meshvale_nanobind_dir OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
   find_package(nanobind 3.1 CONFIG REQUIRED HINTS "${meshvale_nanobind_dir}")
-  nanobind_add_module(_geometry NB_STATIC NB_DOMAIN meshvale_geometry python/bindings.cpp)
+  nanobind_add_module(_geometry NB_STATIC NB_DOMAIN meshvale_geometry
+    python/bindings.cpp python/snapshot.cpp python/triangulation_bindings.cpp)
   meshvale_geometry_add_python_record(meshvale_geometry_record DOMAIN meshvale_geometry)
   set(meshvale_record_probe "${CMAKE_CURRENT_BINARY_DIR}/record_header_h.cpp")
   file(WRITE "${meshvale_record_probe}"
     "#include <meshvale/geometry/python/record.h>\n#include <meshvale/geometry/python/record.h>\n")
   target_sources(_geometry PRIVATE "${meshvale_record_probe}")
-  target_link_libraries(_geometry PRIVATE meshvale_geometry_record)
+  target_include_directories(_geometry PRIVATE python)
+  foreach(meshvale_private_header IN ITEMS snapshot triangulation_bindings)
+    set(meshvale_private_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_private_header}_header.cpp")
+    file(WRITE "${meshvale_private_probe}"
+      "#include \"${meshvale_private_header}.h\"\n#include \"${meshvale_private_header}.h\"\n")
+    target_sources(_geometry PRIVATE "${meshvale_private_probe}")
+  endforeach()
+  target_link_libraries(_geometry PRIVATE meshvale_geometry_record meshvale::triangulation)
   if(MSVC)
     target_compile_options(_geometry PRIVATE /W4 /WX)
   else()

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | GEO-PYTHON-001 |
-| Version | 0.1.1 |
+| Version | 0.2.2 |
 | Status | Development interface; no stable release |
 | Owner | Python snapshot ownership, buffer exchange and package consumption |
 
@@ -101,6 +101,73 @@ split, stable-ABI and free-threaded variants require separate evidence. Legacy
 `.hpp` includes have been removed; use `python/record.h` and link the record
 implementation target rather than relying on header-only definitions.
 
+## Python polygon conversion
+
+`triangulate(mesh, *, options=None, execution=None, cancellation=None)` accepts
+the canonical immutable `Mesh` snapshot. It invokes the [native exact profile](triangulation.md)
+without rewriting the source: single simple exactly planar binary64 loops,
+convex/concave faces in arbitrary 3D planes and both windings, up to 4096 corners
+per face. Unsupported geometry and malformed mesh storage return native blocked
+diagnostics; there is no fan fallback or implicit repair.
+
+`TriangulationOptions(max_corners_per_face=4096, minimum_parallel_faces=64)` is a
+frozen value. Its fields require built-in integers; booleans, floats, strings and
+integer subclasses raise `TypeError`, negatives raise `ValueError`, and values
+outside the native uint64/size_t range raise `OverflowError`. The corner limit
+must be 3 through 4096 or raises `ValueError`. These configuration errors are
+distinct from blocked mesh outcomes. Limits below a source face's corner count
+produce `conversion.face_corner_limit`; zero parallel threshold is permitted.
+
+`ExecutionContext` takes keyword-only `worker_budget=0`,
+`minimum_parallel_vertices=65536`, and `tracked_payload_budget_bytes=268435456`,
+with the same strict nonnegative size_t validation. A zero worker budget selects
+hardware concurrency with at least one worker. Passing the same context, or a
+`copy.copy` of it, shares native worker/payload admission across concurrent calls.
+None creates a fresh context for that call. Readonly properties expose
+`worker_budget`, `active_workers`, `peak_workers`, `tracked_payload_budget_bytes`,
+`active_tracked_payload_bytes` and `peak_tracked_payload_bytes`. Peaks are lifetime
+reservation peaks of that shared context. External calling Python threads are
+outside the library-owned worker count.
+
+`Cancellation()` owns a native stop source. `request_stop()` returns true on the
+first request and false after a previous request; `stop_requested` is readonly.
+A stopped source remains stopped and may be reused to pre-cancel later calls.
+Use a new source for another uncanceled operation. A synchronous conversion
+releases the GIL only while executing native code, so another Python thread can
+inspect active context metrics and request stop. No Python callbacks run on
+native workers. Cancellation joins workers and returns no partial success.
+Native allocation/thread-creation exceptions retain their exception behavior.
+
+The frozen `TriangulationResult` contains `status` (`accepted`, `blocked` or
+`canceled`), `candidate` (canonical `Mesh` or None), a tuple of frozen
+`Diagnostic(code, subject, element)` values, `face_sources`, `corner_sources`,
+`face_output_offsets`, `workers_used`, `serial_reason`, and
+`peak_tracked_payload_bytes`. Correspondence maps are readonly native-format
+uint64 memoryviews backed by independently owned immutable Python bytes; they
+retain exact indices without conversion through float. Their directions/ranges
+match the native contract. Blocked/canceled outcomes have no candidate and all
+three maps empty. Candidate, diagnostics and retained views survive destruction
+of the source, context, cancellation and result object. Returning a candidate
+does not reconstruct authored polygon topology.
+
+The native [execution accounting contract](execution.md) covers declared
+reservations during computation and explicitly retained native payload leases.
+The conversion's active reservation covers its computation,
+including its snapshot/output/maps/scratch. Python input/result wrappers,
+diagnostic marshalling and the copies into Python-owned map buffers occur
+outside those reservations. Retaining returned candidates/views is also outside
+active accounting. The per-result peak and context peaks are reserved payload,
+not measured allocation or process RSS; allocator spare capacity, overhead and
+thread stacks remain excluded by the native contract. The GIL is held during
+record import/export and result marshalling.
+
+See the [installed concave/UV example](../examples/python/triangulate_mesh.py) and
+[installed acceptance tests](../tests/python/test_triangulation.py), which use an
+independent Fraction coverage/correspondence oracle and exercise worker sharing,
+payload contention, real Python-thread cancellation, strict configuration and
+result lifetimes. Conversion does not establish destination float32 loss bounds
+or format publication.
+
 ## Portable development candidates
 
 The manually dispatched [candidate workflow](../.github/workflows/portable-candidates.yml)
@@ -115,13 +182,15 @@ then independently rebuilds that archive outside Git. Linux uses auditwheel;
 Windows uses delvewheel with the Microsoft C++ runtime kept external. Windows
 consumers need ordinary x64 CPython 3.13 and the official
 [x64 Visual C++ v14 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/),
-at least as recent as the compiler recorded in the build log. CPython supplies
+at least as recent as the compiler recorded in the build log, including
+`msvcp140.dll` and `msvcp140_atomic_wait.dll`. These runtime files are not bundled
+in the wheel. CPython supplies
 its own Python/VCRuntime DLLs; Windows supplies UCRT and system DLLs. The
 `windows-2022` hosted image is mutable, so its image identity is recorded for each
 run. A clean Windows 11 consumer check remains necessary before declaring that
 runtime baseline supported.
 
-Both repaired builds run the existing snapshot tests, the independent installed
+Both repaired builds run the snapshot and conversion tests, the independent installed
 record consumer in both import orders, report validation and `pip check` in
 isolated test environments outside source. Successful jobs retain wheel/source
 archives, their required license notices, dependency inspection and a SHA256

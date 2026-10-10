@@ -36,9 +36,9 @@ jobs:
         python -c "import hashlib,pathlib; p=pathlib.Path('{wheel}'); print('Unrepaired SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())" >> /output/dependencies.txt &&
         auditwheel repair --plat manylinux_2_28_x86_64 --wheel-dir "{dest_dir}" "{wheel}" && auditwheel show "{dest_dir}"/*.whl >> /output/dependencies.txt
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
-        python -m delvewheel show --exclude msvcp140.dll "{wheel}" > "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
+        python -m delvewheel show --exclude "msvcp140.dll;msvcp140_atomic_wait.dll" "{wheel}" > "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
         python -c "import hashlib,pathlib; p=pathlib.Path(r'{wheel}'); print('Unrepaired SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())" >> "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
-        python -m delvewheel repair --exclude msvcp140.dll --wheel-dir "{dest_dir}" "{wheel}" && python -c "import pathlib,subprocess,sys; [subprocess.run([sys.executable,'-m','delvewheel','show','--exclude','msvcp140.dll',str(p)],check=True) for p in pathlib.Path(r'{dest_dir}').glob('*.whl')]" >> "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt"
+        python -m delvewheel repair --exclude "msvcp140.dll;msvcp140_atomic_wait.dll" --wheel-dir "{dest_dir}" "{wheel}" && python -c "import pathlib,subprocess,sys; [subprocess.run([sys.executable,'-m','delvewheel','show','--exclude','msvcp140.dll;msvcp140_atomic_wait.dll',str(p)],check=True) for p in pathlib.Path(r'{dest_dir}').glob('*.whl')]" >> "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt"
       CIBW_BEFORE_BUILD_LINUX: >-
         python -m pip install --only-binary=:all: cmake==4.3.1 && python -m pip freeze && cmake --version && c++ --version && ldd --version
       CIBW_BEFORE_BUILD_WINDOWS: >-
@@ -53,6 +53,7 @@ jobs:
         python -I -c "import meshvale_reports as r,sys; assert r.schema_document()[chr(36)+'id']=='urn:meshvale:report-envelope:1'; assert 'meshvale_geometry' not in sys.modules and 'jsonschema' not in sys.modules" &&
         python -I -m unittest discover -s "{package}/tests/python" -v &&
         python -I "{package}/examples/python/inspect_mesh.py" &&
+        python -I "{package}/examples/python/triangulate_mesh.py" &&
         python -I "{package}/examples/record-consumer/check.py" geometry-first &&
         python -I "{package}/examples/record-consumer/check.py" consumer-first &&
         python -I -m unittest discover -s "{package}/tests/reports" -v &&

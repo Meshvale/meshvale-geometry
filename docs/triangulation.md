@@ -1,9 +1,12 @@
 # Exact polygon triangulation
 
+The native interface and [Python `triangulate`](python.md#python-polygon-conversion)
+perform the same explicit conversion and return owned source correspondence.
+
 This development C++20 operation explicitly converts polygons to triangles.
 The [header](../include/meshvale/geometry/triangulation.h) owns the API and the
-compiled static target is `meshvale::triangulation`. Python conversion bindings
-and stable API/ABI guarantees are forthcoming.
+compiled static target is `meshvale::triangulation`. Python conversion uses the
+same native operation. Stable API/ABI guarantees are forthcoming.
 
 ```cpp
 #include <meshvale/geometry/triangulation.h>
