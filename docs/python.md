@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | GEO-PYTHON-001 |
-| Version | 0.2.1 |
+| Version | 0.2.2 |
 | Status | Development interface; no stable release |
 | Owner | Python snapshot ownership, buffer exchange and package consumption |
 
@@ -14,6 +14,11 @@
 `vertex_count`, `face_count` and `corner_count` describe stored rows. `inspect_storage()` returns diagnostic dictionaries with `code`, `subject` and nullable `element`. `inspect_topology()` returns `checks`, `diagnostics` and nullable `topology`. Each check has `name`, `status` (`performed`, `blocked`, `unsupported`) and `reason`. A present topology dictionary contains copied `corners`, `edges`, `vertices`, `face_components` and `boundaries` matching the [native topology contract](topology.md). These returned dictionaries/lists may be edited without changing the mesh. They are inspection data, not the shared workflow report schema or an editing interface.
 
 Import validates the record representation, not mesh validity: bad face offsets, out-of-range vertex references, nonfinite positions and misaligned attribute rows remain available for [storage inspection](attributes.md). A representation error raises `TypeError`, `ValueError` or `OverflowError`, with no partially published mesh. A released memoryview raises `ValueError`. Native allocation failure raises `MemoryError`. Topology coverage and defects retain their native meaning; no global clean/valid flag is added.
+
+The native [execution accounting contract](execution.md) includes active
+computation reservations and explicitly leased requested allocations. Leases
+are not exposed by this Python snapshot interface; its returned buffers remain
+independently owned and are not automatically charged to a context.
 
 ## GEO-PYTHON-002: Record version and shape
 
@@ -145,7 +150,9 @@ three maps empty. Candidate, diagnostics and retained views survive destruction
 of the source, context, cancellation and result object. Returning a candidate
 does not reconstruct authored polygon topology.
 
-The native tracked budget covers declared reservations during computation,
+The native [execution accounting contract](execution.md) covers declared
+reservations during computation and explicitly retained native payload leases.
+The conversion's active reservation covers its computation,
 including its snapshot/output/maps/scratch. Python input/result wrappers,
 diagnostic marshalling and the copies into Python-owned map buffers occur
 outside those reservations. Retaining returned candidates/views is also outside

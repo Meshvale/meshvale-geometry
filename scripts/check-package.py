@@ -44,7 +44,7 @@ def inspect(path):
             assert not PurePosixPath(member.name).is_absolute() and ".." not in parts and len(parts) >= 2, member.name
             name = "/".join(parts[1:]); names.append(name)
             assert name in allowed or parts[1] in directories or name in {
-                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py"}, name
+                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py","scripts/check-native-tests.py"}, name
             assert not any(part in {".local",".scratch","__pycache__","references","build",".github"} for part in parts), name
             assert not name.endswith((".pyc",".pyd",".so",".obj",".log")), name
         assert "python/meshvale_geometry/_version.py" in names
@@ -72,6 +72,13 @@ def inspect(path):
                      "tests/test_triangulation_oracle.py", "tests/triangulation_fraction_oracle.py",
                      "tests/triangulation_fixture_driver.cpp", "tests/triangulation_fixtures.py",
                      "examples/triangulation-consumer/main.cpp"]:
+            assert name in names, name
+        for name in ["include/meshvale/geometry/execution.h", "src/execution.cpp",
+                     "tests/execution.cpp", "tests/execution_allocation.cpp",
+                     "tests/allocation_failure.h", "tests/allocation_failure.cpp",
+                     "scripts/check-native-tests.py", "docs/execution.md",
+                     "examples/execution-consumer/CMakeLists.txt",
+                     "examples/execution-consumer/main.cpp"]:
             assert name in names, name
         assert "python/meshvale_reports/report-v1.schema.json" in names
         assert "tests/reports/test_reports.py" in names

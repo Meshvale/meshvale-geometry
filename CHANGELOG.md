@@ -12,6 +12,11 @@
 
 ### Added
 
+- Move-only native payload and worker leases through `execution.h` and
+  `meshvale::editing`, sharing existing context caps with bounds/triangulation.
+  Explicit charges survive caller-context destruction; failed growth preserves
+  prior charges and cancellation never blocks shrink or cleanup.
+
 - Python `triangulate` for canonical immutable snapshots, frozen outcomes with
   readonly owned uint64 correspondence, shared native execution contexts and
   thread-requested cancellation during GIL-released native computation.

@@ -22,6 +22,11 @@ computation uses immutable snapshots and a shared worker budget. See the
 separate `meshvale::editing` target. Editing bindings and stable compatibility
 are forthcoming.
 
+[Shared execution leases](docs/execution.md) let native clients retain explicit
+payload charges and worker slots under that same context budget. The
+[installed lease example](examples/execution-consumer/CMakeLists.txt) shows
+context lifetime and joined workers with nested caller fallback.
+
 The [native triangulation contract](docs/triangulation.md) describes explicit
 conversion of simple exactly planar polygon faces, authored face/corner maps,
 channel backing and shared execution. The [Python conversion example](examples/python/triangulate_mesh.py)
