@@ -77,4 +77,4 @@ jobs:
         run: python -m pip wheel examples/record-consumer --no-deps --wheel-dir .local/record-wheels "--config-settings=cmake.define.CMAKE_PREFIX_PATH=${{ github.workspace }}/.local/python-prefix"
       - name: Test fresh installed wheels, lifetimes and both import orders
         shell: bash
-        run: python scripts/test-installed.py --geometry-wheel .local/dist/*.whl --consumer-wheel .local/record-wheels/*.whl --numpy
+        run: python scripts/test-installed.py --geometry-wheel .local/dist/*.whl --consumer-wheel .local/record-wheels/*.whl --numpy --reports

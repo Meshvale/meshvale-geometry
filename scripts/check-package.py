@@ -13,12 +13,15 @@ def inspect(path):
         for name in names:
             parts = PurePosixPath(name).parts
             assert not PurePosixPath(name).is_absolute() and ".." not in parts, name
-            assert parts[0] == "meshvale_geometry" or parts[0].endswith(".dist-info"), name
+            assert parts[0] in {"meshvale_geometry", "meshvale_reports"} or parts[0].endswith(".dist-info"), name
+            if parts[0] == "meshvale_reports":
+                assert len(parts) == 2 and parts[1] in {"__init__.py", "report-v1.schema.json"}, name
             if parts[0] == "meshvale_geometry":
                 assert len(parts) == 2 and (parts[1] in {"__init__.py","_version.py"} or
                        (parts[1].startswith("_geometry.") and parts[1].endswith((".pyd",".so")))), name
         assert any(name.endswith("/METADATA") for name in names)
         assert any(name.endswith("/_version.py") for name in names)
+        assert "meshvale_reports/report-v1.schema.json" in names
         for license in ["LICENSE","NOTICE","nanobind.txt","robin-map.txt"]:
             assert any(name.endswith("/"+license) and ".dist-info/licenses/" in name for name in names), license
     else:
@@ -41,6 +44,8 @@ def inspect(path):
         assert "python/bindings.cpp" in names
         assert "include/meshvale/geometry/python/record.hpp" in names
         assert "tests/python/test_mesh.py" in names
+        assert "python/meshvale_reports/report-v1.schema.json" in names
+        assert "tests/reports/test_reports.py" in names
     print(f"Package content check passed: {path.name}; {len(names)} files")
 
 

@@ -30,7 +30,8 @@ install(EXPORT MeshvaleGeometryTargets NAMESPACE meshvale::
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
 configure_package_config_file(cmake/MeshvaleGeometryConfig.cmake.in
   "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfig.cmake"
-  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry"
+  PATH_VARS CMAKE_INSTALL_DATADIR)
 write_basic_package_version_file(
   "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfigVersion.cmake"
   VERSION "${MESHVALE_GEOMETRY_VERSION}" COMPATIBILITY ExactVersion ARCH_INDEPENDENT)
@@ -39,6 +40,8 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfig.cmake"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
 install(FILES LICENSE NOTICE DESTINATION "${CMAKE_INSTALL_DATADIR}/MeshvaleGeometry")
 install(DIRECTORY licenses/ DESTINATION "${CMAKE_INSTALL_DATADIR}/MeshvaleGeometry/licenses")
+install(FILES python/meshvale_reports/report-v1.schema.json
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/MeshvaleGeometry/schemas")
 
 option(MESHVALE_GEOMETRY_PYTHON "Build the optional Python snapshot interface" OFF)
 if(MESHVALE_GEOMETRY_PYTHON)
