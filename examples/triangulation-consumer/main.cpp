@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <variant>
 #include <vector>
 
 int main() {

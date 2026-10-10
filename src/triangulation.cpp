@@ -11,6 +11,7 @@
 #include <exception>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <set>
 #include <stop_token>
 #include <string>
@@ -18,6 +19,7 @@
 #include <thread>
 #include <type_traits>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "execution_internal.h"

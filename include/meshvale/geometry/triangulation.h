@@ -17,7 +17,7 @@ enum class TriangulationStatus { kAccepted, kBlocked, kCanceled };
 
 struct TriangulationOptions {
   // This exact single-loop profile supports at most 4096 corners per face.
-  // A smaller positive limit may be selected; larger limits are unsupported.
+  // Valid limits are 3 through 4096; limits outside this range are unsupported.
   index_t max_corners_per_face = 4096;
   std::size_t minimum_parallel_faces = 64;
 };
