@@ -6,6 +6,7 @@ name: Portable Python development candidates
   pull_request:
     paths:
       - .github/workflows/portable-candidates.yml
+      - scripts/check-package.py
 
 permissions:
   contents: read
@@ -60,6 +61,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.13"
@@ -69,6 +71,13 @@ jobs:
         shell: bash
         run: |
           mkdir -p .local/preview
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          preview = (Path(os.environ['GITHUB_WORKSPACE']) / '.local/preview').as_posix()
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as stream:
+              stream.write('MESHVALE_PREVIEW_DIR=' + preview + '\n')
+          PY
           python -m pip freeze > .local/preview/host-tools.txt
           python -m cibuildwheel --print-build-identifiers > .local/preview/build-identifiers.txt
           python -c "import os,platform,sys; print(platform.platform()); print(sys.version); print('Runner image:',os.environ.get('ImageOS'),os.environ.get('ImageVersion'))" > .local/preview/host.txt
@@ -81,13 +90,13 @@ jobs:
         run: python -m cibuildwheel --output-dir .local/preview/source-wheels
         env:
           CIBW_ENVIRONMENT_WINDOWS: >-
-            MESHVALE_PREVIEW_DIR="${{ github.workspace }}/.local/preview" MESHVALE_BUILD_KIND=source
+            MESHVALE_PREVIEW_DIR="$MESHVALE_PREVIEW_DIR" MESHVALE_BUILD_KIND=source
       - name: Rebuild, inspect and test repaired candidate from source archive without Git
         shell: bash
         run: python -m cibuildwheel .local/preview/sdist/*.tar.gz --output-dir .local/preview/wheels
         env:
           CIBW_ENVIRONMENT_WINDOWS: >-
-            MESHVALE_PREVIEW_DIR="${{ github.workspace }}/.local/preview" MESHVALE_BUILD_KIND=archive
+            MESHVALE_PREVIEW_DIR="$MESHVALE_PREVIEW_DIR" MESHVALE_BUILD_KIND=archive
       - name: Inspect final publication contents and record identities
         shell: bash
         run: |

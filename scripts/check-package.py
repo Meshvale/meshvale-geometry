@@ -9,11 +9,17 @@ import zipfile
 def inspect(path):
     if path.suffix == ".whl":
         with zipfile.ZipFile(path) as archive:
-            names = archive.namelist()
-        for name in names:
+            members = archive.infolist()
+            names = [member.filename for member in members if not member.is_dir()]
+        for member in members:
+            name = member.filename
             parts = PurePosixPath(name).parts
             assert not PurePosixPath(name).is_absolute() and ".." not in parts, name
             assert parts[0] in {"meshvale_geometry", "meshvale_reports"} or parts[0].endswith(".dist-info"), name
+            if member.is_dir():
+                # Repair tools emit structural ZIP directories, not package payload.
+                assert len(parts) == 1 or parts[0].endswith(".dist-info"), name
+                continue
             if parts[0] == "meshvale_reports":
                 assert len(parts) == 2 and parts[1] in {"__init__.py", "report-v1.schema.json"}, name
             if parts[0] == "meshvale_geometry":
