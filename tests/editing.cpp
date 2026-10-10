@@ -7,6 +7,7 @@
 #include <barrier>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <future>
 #include <iostream>
@@ -27,6 +28,14 @@ using namespace meshvale::geometry;
 
 void Require(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
+}
+bool SamePositions(const PositionBuffer& first, const PositionBuffer& second) {
+  if (first.size() != second.size()) return false;
+  for (std::size_t row = 0; row < first.size(); ++row) {
+    const auto a = first.Get(row), b = second.Get(row);
+    if (std::memcmp(a.data(), b.data(), 3 * sizeof(double)) != 0) return false;
+  }
+  return true;
 }
 
 template <class Callable>
@@ -479,7 +488,7 @@ void PolygonCyclesAndImport() {
               dense.corners.size() == 12,
           "mixed concave/repeated-corner cycles changed during import");
   const auto projected = snapshot.ExportMesh();
-  Require(projected.positions == raw.positions &&
+  Require(SamePositions(projected.positions, raw.positions) &&
               projected.face_offsets == raw.face_offsets &&
               projected.corner_vertices == raw.corner_vertices &&
               inspect_storage(projected).empty(),
@@ -895,9 +904,9 @@ void ParallelBounds() {
   constexpr int kVertices = 40000;
   raw.positions.reserve(kVertices);
   for (int i = 0; i != kVertices; ++i)
-    raw.positions.push_back({static_cast<double>(i - 20000),
-                             static_cast<double>(i % 31 - 15),
-                             static_cast<double>(-i)});
+    raw.positions.Append({static_cast<double>(i - 20000),
+                          static_cast<double>(i % 31 - 15),
+                          static_cast<double>(-i)});
   auto imported = EditableMesh::ImportMesh(raw);
   const auto snapshot = imported.mesh.Snapshot();
   const Bounds expected{{-20000, -15, -39999}, {19999, 15, 0}};
@@ -988,7 +997,7 @@ void InFlightBoundsCancellation() {
   constexpr int kVertices = 1000000;
   raw.positions.reserve(kVertices);
   for (int i = 0; i != kVertices; ++i)
-    raw.positions.push_back({static_cast<double>(i), 1, -1});
+    raw.positions.Append({static_cast<double>(i), 1, -1});
   auto imported = EditableMesh::ImportMesh(raw);
   const auto snapshot = imported.mesh.Snapshot();
   ExecutionContext execution({3, 1});

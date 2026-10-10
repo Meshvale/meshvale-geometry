@@ -79,7 +79,7 @@ int main() {
             "installed small-snapshot bounds did not execute correctly");
     Mesh parallel_raw;
     for (int i = 0; i != 512; ++i)
-      parallel_raw.positions.push_back(
+      parallel_raw.positions.Append(
           {static_cast<double>(i), static_cast<double>(-i), 1});
     auto parallel_mesh = EditableMesh::ImportMesh(parallel_raw);
     const auto parallel_bounds =

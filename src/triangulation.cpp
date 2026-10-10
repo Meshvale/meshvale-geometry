@@ -210,7 +210,7 @@ std::vector<std::array<index_t, 3>> TriangulateFace(const Mesh& mesh,
   int exponent = 971;
   for (index_t i = start; i < end; ++i) {
     context.Check();
-    for (const double value : mesh.positions[mesh.corner_vertices[i]])
+    for (const double value : mesh.positions.Get(mesh.corner_vertices[i]))
       if (value != 0) exponent = std::min(exponent, Exponent(value));
   }
   std::vector<Point> points;
@@ -219,7 +219,7 @@ std::vector<std::array<index_t, 3>> TriangulateFace(const Mesh& mesh,
     Point point;
     for (std::size_t axis = 0; axis < 3; ++axis)
       point[axis] =
-          Exact(mesh.positions[mesh.corner_vertices[i]][axis], exponent);
+          Exact(mesh.positions.Get(mesh.corner_vertices[i])[axis], exponent);
     points.push_back(std::move(point));
   }
   for (index_t i = 0; i < count; ++i)
@@ -400,6 +400,15 @@ std::vector<T> Copy(const std::vector<T>& values, Context& context) {
   }
   return copied;
 }
+PositionBuffer Copy(const PositionBuffer& values, Context& context) {
+  PositionBuffer copied;
+  copied.reserve(values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i % 256 == 0) context.Check();
+    copied.Append(values.Get(i));
+  }
+  return copied;
+}
 Attribute Descriptor(const Attribute& source, Context& context) {
   context.Check();
   Attribute output;
@@ -445,7 +454,7 @@ std::optional<Diagnostic> StorageIssue(const Mesh& mesh, Context& context) {
   };
   for (std::size_t i = 0; i < mesh.positions.size(); ++i) {
     context.Check();
-    for (const auto coordinate : mesh.positions[i])
+    for (const auto coordinate : mesh.positions.Get(i))
       if (!std::isfinite(coordinate))
         return issue("mesh.nonfinite_position", "positions", i);
   }

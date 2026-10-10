@@ -4,6 +4,11 @@
 
 ### Changed
 
+- Raw Mesh positions use an Eigen 3.4.1 row-major owning `PositionBuffer` with
+  explicit Get/Set/Append row values and strong copy/growth rollback. This changes
+  C++ source/ABI shapes; polygon channels, canonical mesh/1 records and Python
+  owned snapshot semantics retain their contracts.
+
 - Remove legacy `.hpp` forwarding paths; canonical `.h` headers declare storage
   and topology operations implemented in compiled static CMake targets.
 - Provide an opt-in installed Python record implementation-source factory for

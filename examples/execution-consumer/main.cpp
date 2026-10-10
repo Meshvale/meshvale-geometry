@@ -44,7 +44,7 @@ void JoinedWorkers() {
   ExecutionContext context({3, 1});
   Mesh source;
   for (std::size_t i = 0; i < 256; ++i)
-    source.positions.push_back({static_cast<double>(i), 0, 0});
+    source.positions.Append({static_cast<double>(i), 0, 0});
   auto imported = EditableMesh::ImportMesh(source);
   const auto snapshot = imported.mesh.Snapshot();
   auto slots = TryReserveWorkers(context, 3);

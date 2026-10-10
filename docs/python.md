@@ -38,7 +38,7 @@ Every attribute has exactly these fields: `domain` (`vertex`, `face`, `corner`),
 
 ## Build, install and try
 
-The distribution is `meshvale-geometry`; the import is `meshvale_geometry`. Building requires C++20, CMake 3.24+, ordinary GIL-enabled CPython 3.10+ and the pinned build dependencies in [pyproject.toml](../pyproject.toml). Native-only CMake builds remain independent of Python/nanobind. Builds use nanobind with a private static runtime and an explicit record seam; no cross-extension C++ type exchange is promised. Wheels are specific to the building Python ABI/platform; free-threaded builds, stable-ABI wheels and a broad release matrix are not supported by this experiment. No runtime NumPy dependency is required.
+The distribution is `meshvale-geometry`; the import is `meshvale_geometry`. Building requires C++20, CMake 3.24+, ordinary GIL-enabled CPython 3.10+ and the pinned build dependencies in [pyproject.toml](../pyproject.toml). Native-only CMake builds remain independent of Python/nanobind. All source builds use the exact Eigen 3.4.1 private dependency described in [numerical setup](numerics.md#dependency-and-installation); installed record consumers need no Eigen headers. Builds use nanobind with a private static runtime and an explicit record seam; no cross-extension C++ type exchange is promised. Wheels are specific to the building Python ABI/platform; free-threaded builds, stable-ABI wheels and a broad release matrix are not supported by this experiment. No runtime NumPy dependency is required.
 
 ```sh
 python -m pip wheel . --no-deps --wheel-dir .local/wheels

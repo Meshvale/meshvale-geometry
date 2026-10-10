@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/execution.h>
+#include <meshvale/geometry/position_buffer.h>
 
 #include <iostream>
 #include <limits>
@@ -145,6 +146,34 @@ void AllocationRollbackCases() {
               context.PeakTrackedPayload() == total,
           "block cleanup or peak");
 }
+void PositionRollbackCases() {
+  PositionBuffer source{{1, 2, 3}, {4, 5, 6}};
+  PositionBuffer destination{{7, 8, 9}};
+  for (const int operation : {0, 1, 2}) {
+    reject_allocations = true;
+    bool failed = false;
+    try {
+      if (operation == 0) destination = source;
+      if (operation == 1) destination.reserve(16);
+      if (operation == 2) destination.Append({1, 2, 3});
+    } catch (const std::bad_alloc&) {
+      failed = true;
+    }
+    reject_allocations = false;
+    Require(failed && destination.size() == 1 && destination.Get(0)[0] == 7 &&
+                source.size() == 2 && source.Get(1)[2] == 6,
+            "position allocation failure did not preserve source/destination");
+  }
+  reject_allocations = true;
+  PositionBuffer empty;
+  empty.clear();
+  destination.Set(0, {7, 8, 9});
+  destination = std::move(destination);
+  auto moved = std::move(source);
+  reject_allocations = false;
+  Require(source.empty() && moved.size() == 2 && empty.empty(),
+          "position empty/move paths allocated or lost rows");
+}
 }  // namespace
 int main() {
   try {
@@ -152,6 +181,7 @@ int main() {
     LifetimeAndAllocationCases();
     NoAllocationCases();
     AllocationRollbackCases();
+    PositionRollbackCases();
     std::cout << "Execution allocation failure cases passed\n";
   } catch (const std::exception& error) {
     reject_allocations = false;

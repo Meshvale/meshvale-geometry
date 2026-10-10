@@ -29,7 +29,8 @@ def inspect(path):
         assert any(name.endswith("/_version.py") for name in names)
         assert "meshvale_geometry/triangulation.py" in names
         assert "meshvale_reports/report-v1.schema.json" in names
-        for license in ["LICENSE","NOTICE","nanobind.txt","robin-map.txt"]:
+        for license in ["LICENSE","NOTICE","nanobind.txt","robin-map.txt",
+                        "eigen-mpl2.txt", "eigen-apache.txt", "eigen-notices.txt"]:
             assert any(name.endswith("/"+license) and ".dist-info/licenses/" in name for name in names), license
     else:
         with tarfile.open(path, "r:gz") as archive:
@@ -56,11 +57,14 @@ def inspect(path):
                      "python/meshvale_geometry/triangulation.py", "tests/python/test_triangulation.py",
                      "examples/python/triangulate_mesh.py"]:
             assert name in names, name
-        for header in ["attributes", "mesh", "topology", "python/record"]:
+        for header in ["attributes", "mesh", "topology", "position_buffer", "python/record"]:
             assert "include/meshvale/geometry/" + header + ".h" in names
         assert not any(name.endswith(".hpp") for name in names)
         for name in ["src/attributes.cpp", "src/mesh.cpp", "src/topology.cpp",
-                     "src/python/record.cpp", "cmake/MeshvaleGeometryPythonRecord.cmake"]:
+                     "src/position_buffer.cpp", "src/python/record.cpp",
+                     "cmake/MeshvaleEigen.cmake", "cmake/MeshvaleGeometryPythonRecord.cmake",
+                     "docs/numerics.md", "licenses/eigen-mpl2.txt",
+                     "licenses/eigen-apache.txt", "licenses/eigen-notices.txt"]:
             assert name in names, name
         assert "tests/python/test_mesh.py" in names
         assert "include/meshvale/geometry/editable_mesh.h" in names

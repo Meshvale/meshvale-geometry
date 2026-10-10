@@ -15,10 +15,17 @@ if(Git_FOUND)
   endif()
 endif()
 
-add_library(meshvale_geometry STATIC src/attributes.cpp src/mesh.cpp src/topology.cpp)
+include(cmake/MeshvaleEigen.cmake)
+add_library(meshvale_geometry STATIC src/attributes.cpp src/mesh.cpp src/topology.cpp src/position_buffer.cpp)
 add_library(meshvale::geometry ALIAS meshvale_geometry)
 set_target_properties(meshvale_geometry PROPERTIES EXPORT_NAME geometry POSITION_INDEPENDENT_CODE ON)
 target_compile_features(meshvale_geometry PUBLIC cxx_std_20)
+# Resolve header usage privately rather than exporting a LINK_ONLY Eigen target
+# from the static library. Public headers contain no Eigen types/templates.
+target_include_directories(meshvale_geometry SYSTEM PRIVATE
+  $<TARGET_PROPERTY:Eigen3::Eigen,INTERFACE_INCLUDE_DIRECTORIES>)
+target_compile_definitions(meshvale_geometry PRIVATE
+  EIGEN_MPL2_ONLY EIGEN_DONT_PARALLELIZE EIGEN_FAST_MATH=0)
 target_include_directories(meshvale_geometry PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
@@ -35,11 +42,11 @@ set_target_properties(meshvale_geometry_triangulation PROPERTIES
   EXPORT_NAME triangulation POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(meshvale_geometry_triangulation PUBLIC meshvale::editing)
 if(MSVC)
-  target_compile_options(meshvale_geometry PRIVATE /W4 /WX)
+  target_compile_options(meshvale_geometry PRIVATE /W4 /WX /fp:strict)
   target_compile_options(meshvale_geometry_editing PRIVATE /W4 /WX)
   target_compile_options(meshvale_geometry_triangulation PRIVATE /W4 /WX /fp:strict)
 else()
-  target_compile_options(meshvale_geometry PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  target_compile_options(meshvale_geometry PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
   target_compile_options(meshvale_geometry_editing PRIVATE -Wall -Wextra -Wpedantic -Werror)
   target_compile_options(meshvale_geometry_triangulation PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
 endif()
@@ -116,7 +123,7 @@ if(BUILD_TESTING)
     "Build ordinary replacement-new allocation failure tests (disable for TSan)" ON)
   add_library(meshvale_geometry_header_checks OBJECT)
   target_link_libraries(meshvale_geometry_header_checks PRIVATE meshvale::geometry)
-  foreach(meshvale_header IN ITEMS attributes mesh topology execution)
+  foreach(meshvale_header IN ITEMS attributes mesh topology execution position_buffer)
     set(meshvale_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_header}_h.cpp")
     file(WRITE "${meshvale_probe}"
       "#include <meshvale/geometry/${meshvale_header}.h>\n#include <meshvale/geometry/${meshvale_header}.h>\n")

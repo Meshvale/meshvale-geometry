@@ -128,8 +128,11 @@ Mesh Quads(std::size_t faces) {
   for (std::size_t face = 0; face < faces; ++face) {
     const auto base = static_cast<index_t>(mesh.positions.size());
     const auto x = static_cast<double>(face * 2);
-    mesh.positions.insert(mesh.positions.end(),
-                          {{x, 0, 0}, {x + 1, 0, 0}, {x + 1, 1, 0}, {x, 1, 0}});
+    for (const PositionBuffer::Row point : {PositionBuffer::Row{x, 0, 0},
+                                            {x + 1, 0, 0},
+                                            {x + 1, 1, 0},
+                                            {x, 1, 0}})
+      mesh.positions.Append(point);
     for (index_t corner = 0; corner < 4; ++corner)
       mesh.corner_vertices.push_back(base + corner);
     mesh.face_offsets.push_back(

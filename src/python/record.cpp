@@ -164,11 +164,9 @@ Mesh from_record(nb::handle source) {
     const auto scalar_count = buffer_count<double>(coordinates.get(), "d");
     if (scalar_count % 3 != 0)
       throw nb::value_error("positions must contain xyz triples");
-    result.positions.resize(scalar_count / 3);
-    const auto* bytes = static_cast<const char*>(coordinates.get().buf);
-    for (std::size_t i = 0; i < result.positions.size(); ++i)
-      std::memcpy(result.positions[i].data(), bytes + i * 3 * sizeof(double),
-                  3 * sizeof(double));
+    result.positions.AssignBytes(
+        {static_cast<const std::byte*>(coordinates.get().buf),
+         static_cast<std::size_t>(coordinates.get().len)});
   }
   result.face_offsets = read_buffer<index_t>(record["face_offsets"], "QL");
   result.corner_vertices =
@@ -191,9 +189,8 @@ nb::dict to_record(const Mesh& mesh) {
       static_cast<Py_ssize_t>(mesh.positions.size() * 3 * sizeof(double))));
   if (!coordinates.is_valid()) throw nb::python_error();
   auto* bytes = PyBytes_AS_STRING(coordinates.ptr());
-  for (std::size_t i = 0; i < mesh.positions.size(); ++i)
-    std::memcpy(bytes + i * 3 * sizeof(double), mesh.positions[i].data(),
-                3 * sizeof(double));
+  mesh.positions.CopyBytesTo({reinterpret_cast<std::byte*>(bytes),
+                              mesh.positions.size() * 3 * sizeof(double)});
   auto view = nb::steal<nb::object>(PyMemoryView_FromObject(coordinates.ptr()));
   if (!view.is_valid()) throw nb::python_error();
   result["positions"] = view.attr("cast")("d");

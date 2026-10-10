@@ -32,6 +32,15 @@ bool BitsEqual(const std::vector<T>& a, const std::vector<T>& b) {
          (a.empty() ||
           std::memcmp(a.data(), b.data(), a.size() * sizeof(T)) == 0);
 }
+bool BitsEqual(const PositionBuffer& a, const PositionBuffer& b) {
+  if (a.size() != b.size()) return false;
+  for (std::size_t row = 0; row < a.size(); ++row) {
+    const auto first = a.Get(row), second = b.Get(row);
+    if (std::memcmp(first.data(), second.data(), 3 * sizeof(double)) != 0)
+      return false;
+  }
+  return true;
+}
 bool SameAttribute(const Attribute& a, const Attribute& b) {
   if (a.domain != b.domain || a.name != b.name || a.semantic != b.semantic ||
       a.set_index != b.set_index || a.components != b.components ||
@@ -232,11 +241,13 @@ void NativeCases() {
   for (const bool reversed : {false, true})
     for (const int plane : {0, 1, 2, 3}) {
       auto rotated = mesh;
-      for (auto& p : rotated.positions) {
+      for (std::size_t row = 0; row < rotated.positions.size(); ++row) {
+        auto p = rotated.positions.Get(row);
         const auto x = p[0], y = p[1];
         if (plane == 1) p = {0, x, y};
         if (plane == 2) p = {x, 0, y};
         if (plane == 3) p = {2 * x + y, -x + 3 * y, x - 2 * y};
+        rotated.positions.Set(row, p);
       }
       if (reversed)
         for (std::size_t f = 0; f < rotated.face_count(); ++f)
@@ -264,7 +275,9 @@ void NativeCases() {
   AddAttributes(collinear);
   CheckMapsAndRows(collinear, Triangulate(collinear, {}, serial));
   auto bad = mesh;
-  bad.positions[3][2] = std::numeric_limits<double>::denorm_min();
+  auto nonplanar = bad.positions.Get(3);
+  nonplanar[2] = std::numeric_limits<double>::denorm_min();
+  bad.positions.Set(3, nonplanar);
   const auto rejected = Triangulate(bad, {}, serial);
   Require(rejected.status == TriangulationStatus::kBlocked &&
               rejected.diagnostics[0].code == "conversion.nonplanar_face" &&
@@ -336,7 +349,7 @@ void ExecutionCases() {
             "nested workers exceed shared cap");
     Mesh bounds_source;
     for (std::size_t i = 0; i < 256; ++i)
-      bounds_source.positions.push_back({static_cast<double>(i), 0, 0});
+      bounds_source.positions.Append({static_cast<double>(i), 0, 0});
     auto imported = EditableMesh::ImportMesh(bounds_source);
     const auto bounds = ComputeBounds(imported.mesh.Snapshot(), copy);
     Require(bounds.workers_used == 2 && parallel.ActiveWorkers() == 2,
@@ -353,7 +366,7 @@ void ExecutionCases() {
   }
   Mesh busy;
   for (std::size_t i = 0; i < 256; ++i)
-    busy.positions.push_back(
+    busy.positions.Append(
         {static_cast<double>(i), static_cast<double>(i * i), 0});
   for (std::size_t f = 0; f < 128; ++f) {
     for (std::size_t i = 0; i < busy.positions.size(); ++i)

@@ -4,7 +4,14 @@ This file owns the boundary between portable configuration and machine settings.
 
 Copy [environment.example.json](environment.example.json) to `.local/environment.json` and fill only the fields needed for your task. Keep local paths, credentials, source assets, and raw logs in ignored storage. The template describes configuration inputs; no automatic loader or native build integration is implemented yet.
 
-`workspace_root` is the optional local checkout/workspace location. `vcpkg_root` is an optional existing vcpkg installation. Compiler, generator, triplet, and corpus fields remain unset until used. Relative build paths resolve from this repository. The initial native target requires CMake 3.24+ and a C++20 compiler, with no native third-party dependencies. See [native build/test/install instructions](docs/attributes.md#build-and-installed-consumer). Local tool paths and installed prefixes remain in ignored settings and logs.
+`workspace_root` is the optional local checkout/workspace location. `vcpkg_root` is an optional existing vcpkg installation. Compiler, generator, triplet, and corpus fields remain unset until used. Relative build paths resolve from this repository. The native targets require CMake 3.24+, a C++20 compiler and the pinned Eigen build dependency below. See [native build/test/install instructions](docs/attributes.md#build-and-installed-consumer). Local tool paths and installed prefixes remain in ignored settings and logs.
+
+Native builds use Eigen 3.4.1 as a private header-only implementation dependency.
+CMake uses an exact installed CONFIG package or downloads the hash-pinned official
+archive; offline builds can set `Eigen3_DIR` and disable
+`MESHVALE_GEOMETRY_FETCH_EIGEN`. Installed native consumers require the compiled
+Geometry library and its existing thread dependency, without Eigen headers.
+See [numerical dependency setup](docs/numerics.md#dependency-and-installation).
 
 The current checks need Git and Python 3.10 or newer, with no third-party Python packages:
 
