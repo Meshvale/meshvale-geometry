@@ -17,6 +17,12 @@
 
 ### Added
 
+- Checked native attribute row sums and squared norms through
+  `attribute_numerics.h` and `meshvale::attribute_numerics`, retaining all seven
+  scalar encodings, dense/ragged rows and authored/missing distinctions. Owned
+  results and immutable captures admit complete allocation blocks under shared
+  execution budgets; integer intermediates are checked and workers are joined.
+
 - Move-only native payload and worker leases through `execution.h` and
   `meshvale::editing`, sharing existing context caps with bounds/triangulation.
   Explicit charges survive caller-context destruction; failed growth preserves

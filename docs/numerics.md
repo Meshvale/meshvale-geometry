@@ -1,9 +1,9 @@
-# Numerical position storage
+# Numerical position and attribute operations
 
 | Field | Value |
 |---|---|
 | ID | MESHVALE-NUMERICS-001 |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Status | Native development interface; no stable API/ABI or release |
 | Owner | Geometry |
 
@@ -84,6 +84,86 @@ are outside context accounting. Triangulation retains logical captured/output
 row charges and its documented capacity/bookkeeping exclusions; Eigen allocations
 are not automatically counted by leases. New numerical temporaries need their
 own operation's admission policy. This makes no speed or general robustness claim.
+
+## Attribute row reductions
+
+`ComputeAttributeRowSums` and `ComputeAttributeRowSquaredNorms` in
+[`attribute_numerics.h`](../include/meshvale/geometry/attribute_numerics.h)
+accept one canonical `Attribute`, its expected domain row count, options, an
+`ExecutionContext` and an optional stop token. Link the compiled
+`meshvale::attribute_numerics` target. These operations reduce every scalar in
+one dense or ragged row to one scalar in the **same storage type**. They support
+float32, float64, int32, uint8, uint16, uint32 and uint64. Normal/tangent, UV and
+color rows can be measured by squared norm; fixed or arbitrary-length weight
+rows can be measured by sum. No semantic label changes the arithmetic: encoded
+integer weights remain encoded integers, normalization metadata is descriptive,
+and joint identifiers above 2^53 remain integers. These reductions do not evaluate
+skinning, transforms, or normalized/interpolated channels.
+
+Shape admission checks the existing attribute contract, domain, expected row
+count, offsets, component alignment, presence values, and signed host
+`Eigen::Index`/byte extents before mapping. A malformed shape returns `kBlocked`
+with its `attribute.*` diagnostic; a host extent failure uses
+`numerical.host_extent`. The source remains representable and unchanged, even
+when rejected. Corner rows are independent of position rows and other channels;
+separate UV sets remain separate calls. Caller-supplied row count does not prove
+skin pairing, valid joint references or any asset-level semantics.
+
+Accepted results own a typed vector with one result per source row and an explicit
+presence mask. A missing row has mask zero, its backing scalars are never evaluated,
+and its result slot is an unauthored zero placeholder. An authored empty ragged row
+has mask one and a zero reduction. Result values never fill missing source rows.
+`Get(row)` returns one scalar value in a seven-type variant. Out-of-range or
+blocked access throws `std::out_of_range`. `CopyValues()` returns an independent
+canonical `AttributeValues` copy, throws `std::logic_error` when blocked, and
+propagates export allocation failure. Export copies are caller allocations outside
+the context ledger.
+`Presence()` and fixed code/row `Diagnostics()` borrow from the result. Borrowed references/spans
+last until result move/destruction and require external synchronization with either.
+Results are movable and noncopyable, retain their payload charge until their storage
+is destroyed, and survive source or context destruction. Default/moved-from results
+are blocked and contain no values. No Eigen type, Map, expression or mutable output
+reference is public.
+
+Each signed/unsigned integer addition and squaring intermediate is checked in the
+source type. An unrepresentable intermediate returns `numerical.integer_overflow`,
+even if a differently ordered final mathematical sum would fit. Floating inputs
+must be finite on authored rows; NaN/infinity returns `numerical.nonfinite_value`.
+Floating addition/squaring uses source float32/float64 arithmetic and the compiler's
+strict floating profile. A nonfinite intermediate returns
+`numerical.nonfinite_result`; finite rounding, subnormals, underflow and signed-zero
+arithmetic remain ordinary host floating behavior. There is no exact-sum or
+cross-toolchain bitwise-result guarantee. Numeric-domain rejection is distinct
+from shape rejection and neither changes canonical raw NaN/signed-zero payloads.
+The first failing source row is reported deterministically after workers join.
+
+The implementation admits a private byte-preserving capture, row outcomes and
+owned output under the shared execution payload ledger before allocating them.
+Each privately owned block admits its complete requested allocation before
+allocation: its payload lease header, maximum-native alignment, typed elements and
+result implementation. Captured scalars/offsets/presence, output scalars/presence,
+row outcomes and worker-object arrays coexist under that ledger. No private vector
+capacity or adapter header is excluded. Caller raw storage/export copies and upstream
+allocator internals, thread stacks/runtime and exception-runtime allocations are
+excluded. Expected diagnostics and serial reasons use immutable literal codes;
+no diagnostic string allocation is needed.
+Eigen uses lexical unaligned typed Maps over scalar arrays and evaluated scalar
+reductions; no dynamic Eigen matrix temporary is allocated. Capture/output leases
+are released only after their owned storage. `PeakTrackedPayloadBytes()` reports
+this call's declared peak, not resident memory. Expected budget refusal returns
+`numerical.payload_budget`; allocation and thread-launch failures propagate their
+standard exceptions without changing source or leaking leases.
+
+Rows at or above `minimum_parallel_rows` (default 1024) are eligible for joined
+workers admitted by the existing context; fewer than two available slots run on
+the caller. `WorkersUsed()` and `SerialReason()` report the actual path. Eigen
+internal parallelism stays disabled. Workers own disjoint result slots and read
+only the private immutable capture. Cancellation observes admission, copying,
+scalar work and joined completion, returns `kCanceled` / `numerical.cancelled`,
+and exposes no partial values. It takes priority over expected row failures after
+joins; unexpected exceptions still propagate. Separate calls can share an immutable
+source and context. The caller must keep source alive and prevent its mutation
+throughout capture; the result can outlive both. No performance claim follows.
 
 ## Dependency and installation
 
