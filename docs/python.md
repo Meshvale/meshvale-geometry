@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | GEO-PYTHON-001 |
-| Version | 0.2.0 |
+| Version | 0.2.1 |
 | Status | Development interface; no stable release |
 | Owner | Python snapshot ownership, buffer exchange and package consumption |
 
@@ -175,7 +175,9 @@ then independently rebuilds that archive outside Git. Linux uses auditwheel;
 Windows uses delvewheel with the Microsoft C++ runtime kept external. Windows
 consumers need ordinary x64 CPython 3.13 and the official
 [x64 Visual C++ v14 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/),
-at least as recent as the compiler recorded in the build log. CPython supplies
+at least as recent as the compiler recorded in the build log, including
+`msvcp140.dll` and `msvcp140_atomic_wait.dll`. These runtime files are not bundled
+in the wheel. CPython supplies
 its own Python/VCRuntime DLLs; Windows supplies UCRT and system DLLs. The
 `windows-2022` hosted image is mutable, so its image identity is recorded for each
 run. A clean Windows 11 consumer check remains necessary before declaring that
