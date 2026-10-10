@@ -8,6 +8,8 @@ Copy [environment.example.json](environment.example.json) to `.local/environment
 
 The current checks need Git and Python 3.10 or newer, with no third-party Python packages:
 
+Optional binding builds use ordinary GIL-enabled CPython and the pinned build dependencies in [pyproject.toml](pyproject.toml). See [Python build/installation and ownership requirements](docs/python.md). These dependencies are not needed for native-only builds or the repository checks below. Keep virtual environments and candidate archives under ignored `.local/`.
+
 ```sh
 python scripts/check-portability.py
 python scripts/check-docs.py

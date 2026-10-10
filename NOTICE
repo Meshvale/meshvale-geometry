@@ -3,3 +3,7 @@ Copyright 2026 CarlYaki and Meshvale contributors.
 
 Original material in this repository is licensed under the Apache License, Version 2.0.
 Third-party material retains its own license and attribution notices.
+
+Optional Python extensions statically incorporate nanobind 3.1.0 (BSD-3-Clause)
+and its bundled tsl::robin_map headers (MIT). Their original notices are retained
+in licenses/nanobind.txt and licenses/robin-map.txt and packaged with Python builds.
