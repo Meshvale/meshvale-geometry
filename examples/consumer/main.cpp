@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/mesh.hpp>
+#include <meshvale/geometry/topology.hpp>
 
 int main() {
     meshvale::geometry::Mesh mesh;
@@ -14,5 +15,10 @@ int main() {
     channel.components = 2;
     channel.values = std::vector<float>{0,0,1,0,0,1};
     mesh.attributes.push_back(channel);
-    return meshvale::geometry::inspect_storage(mesh).empty() ? 0 : 1;
+    if (!meshvale::geometry::inspect_storage(mesh).empty()) return 1;
+    const auto inspected = meshvale::geometry::inspect_topology(mesh);
+    if (!inspected.topology || !inspected.diagnostics.empty() || inspected.topology->corners().size() != 3 ||
+        inspected.topology->boundaries().size() != 1 || inspected.topology->boundaries()[0].kind !=
+        meshvale::geometry::BoundaryTopology::cycle) return 2;
+    return 0;
 }

@@ -1,0 +1,31 @@
+# Polygon topology inspection
+
+Contract version **0.1.0**, development interface. [topology.hpp](../include/meshvale/geometry/topology.hpp) owns C++ shapes; [the storage contract](attributes.md) owns raw mesh and attribute layout.
+
+## GEO-TOPOLOGY-001: Owned general incidence
+
+`inspect_topology(const Mesh&)` returns storage diagnostics, explicit check coverage, and an optional owned `TopologySnapshot`. Unsafe face offsets, short faces or out-of-range vertex references block topology construction; no face is silently dropped. Position finiteness and attribute-shape diagnostics do not block purely combinatorial inspection. Neither source positions, loops nor attributes change. Allocation failures propagate without modifying the source.
+
+Each source corner is retained as a directed face-boundary occurrence, with vertex/face references, previous/next corners and its derived edge. An edge groups all occurrences sharing the same unordered vertex-index pair; its endpoint pair is sorted and its occurrences retain source corner order. More than two occurrences remain visible. Edge ordering is lexicographic by endpoint pair. Equal coordinates do not join distinct vertex identities; UV/normal seams do not disconnect shared vertices. These derived edges cannot represent separately authored parallel edges or wire edges, and they do not establish an edge attribute/identity contract.
+
+Vertices expose connected fans of source corner occurrences and a scoped classification: isolated, interior, boundary, non-manifold or degenerate. Across an edge, all incident occurrences at the same endpoint participate in fan connectivity; no arbitrary opposite is chosen. Fans and their corners are ordered by first source occurrence. Repeated vertex occurrences in one face, self-loop edges and repeated use of an edge by one face are retained and diagnosed as degeneracies. A non-degenerate surface vertex has one fan and either zero boundary edges (interior) or two (boundary), with every incident edge having at most two distinct face occurrences. Multiple fans or branching edge incidence are non-manifold. Isolated vertices are reported separately, not assigned surface manifoldness.
+
+Two-occurrence edges connecting distinct faces have compatible directed winding when the occurrences have opposite directions. Same-direction occurrences produce an orientation conflict. Self-loops, repeated same-face incidence and higher edge incidence produce an ambiguous-orientation diagnostic. This is an inspection of existing winding, not a test that a consistent orientation could be found or that a closed surface faces outward.
+
+Face-connected components use shared derived edges, including higher incidence. Boundary components use edges with exactly one face-boundary occurrence. Each component exposes its edge and vertex sets and a graph classification: cycle, chain, branched or degenerate. A self-loop boundary is degenerate. Cycles have degree two at every vertex; chains have two degree-one ends and degree two elsewhere. Graph classification does not establish manifoldness of the adjoining surface. Branched boundaries have no invented unique traversal. Components and their members use deterministic source/edge ordering; no geometric radial or boundary orientation is inferred.
+
+The snapshot owns all its data and remains usable after source modification/destruction. Its arrays are exposed only through const accessors; there is no incremental mutation interface. References obtained from an accessor require the snapshot to remain alive and unreassigned. Its indices describe that snapshot, not stable handles in an edited mesh. Rebuild inspection after an edit; no mutable cache or automatic revision tracking is provided.
+
+## GEO-TOPOLOGY-002: Coverage and diagnostics
+
+Coverage records distinguish `performed`, `blocked` and `unsupported`. `storage` is always performed. `edge_incidence`, `vertex_fans`, `edge_orientation`, `boundary_components` and `face_components` are performed when a snapshot is constructed, otherwise blocked by unsafe topology storage. A performed check may have defect diagnostics; coverage is not a pass/validity flag.
+
+`geometric_degeneracy`, `face_planarity`, `self_intersection`, `outward_orientation` and `solid_containment` are explicitly unsupported. Equal-position distinct vertices, geometric crossings, zero-area faces and non-planarity are not inferred from combinatorial incidence. A closed boundary graph or compatible winding cannot justify a solid-validity claim.
+
+Storage diagnostic codes retain their existing meanings. Topology codes are `topology.face_repeated_vertex` (face index), `topology.edge_self_loop`, `topology.edge_repeated_face`, `topology.edge_nonmanifold`, `topology.edge_orientation_conflict`, `topology.edge_orientation_ambiguous` (derived edge indices), `topology.vertex_isolated`, `topology.vertex_degenerate`, `topology.vertex_nonmanifold` (vertex indices), and `topology.boundary_chain`, `topology.boundary_branched`, `topology.boundary_degenerate` (boundary component indices). Boundary cycles are represented without a defect diagnostic; open sheets are permitted input. Diagnostic subjects identify the indexed domain. Defects remain inspectable and are not repair instructions.
+
+## Acceptance and consumption
+
+Original fixtures cover mixed/concave polygons, a consistently wound closed tetrahedron, a shared-edge winding conflict, three faces sharing an edge, two fans touching only at a vertex, duplicated/reversed faces, repeated face vertices and edge occurrences, self-loop boundaries, isolated vertices, malformed storage, seams/multiple UV sets and snapshot lifetime. Tests also separate nonfinite/invalid attribute storage from safe topology, and show geometric coincidences do not create connectivity. Build/install and separate consumer instructions are in [the storage contract](attributes.md#build-and-installed-consumer). No native third-party dependency is introduced.
+
+The implementation uses sorting/grouping and disjoint-set traversal with storage proportional to vertices, faces and corner occurrences. It is an optional inspection snapshot, not an editable mesh, half-edge backend or performance benchmark.
