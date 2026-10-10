@@ -19,6 +19,9 @@
 #include <vector>
 
 namespace meshvale::geometry {
+namespace execution_detail {
+struct Access;
+}
 namespace editing_detail {
 struct Owner;
 struct Session;
@@ -314,6 +317,8 @@ struct ImportResult {
 struct ExecutionOptions {
   std::size_t worker_budget = 0;  // 0 selects hardware concurrency, at least 1.
   std::size_t minimum_parallel_vertices = 65536;
+  // Cap on declared payload reservations of active computations, not total RSS.
+  std::size_t tracked_payload_budget_bytes = 256 * 1024 * 1024;
 };
 // Copies share one cap on library-owned worker threads across overlapping or
 // nested calls. External caller threads are not created/accounted by this API.
@@ -323,9 +328,13 @@ class ExecutionContext {
   [[nodiscard]] std::size_t WorkerBudget() const;
   [[nodiscard]] std::size_t ActiveWorkers() const;
   [[nodiscard]] std::size_t PeakWorkers() const;
+  [[nodiscard]] std::size_t TrackedPayloadBudget() const;
+  [[nodiscard]] std::size_t ActiveTrackedPayload() const;
+  [[nodiscard]] std::size_t PeakTrackedPayload() const;
 
  private:
   friend struct editing_detail::Access;
+  friend struct execution_detail::Access;
   std::shared_ptr<editing_detail::Execution> execution_;
 };
 struct Bounds {

@@ -220,6 +220,13 @@ numerical proof under EDIT-007.
 
 ## Storage cost and installation
 
+The [native triangulation operation](triangulation.md) shares this context's
+worker state. `ExecutionOptions` also has a trailing declared active-payload
+budget; existing two-field source initializers retain their defaults. Bounds
+reserve worker slots and no triangulation payload. Context copies share
+`TrackedPayloadBudget()`, `ActiveTrackedPayload()` and lifetime
+`PeakTrackedPayload()`; see triangulation's explicit accounting exclusions.
+
 The implementation uses private 64-record copy-on-write pages. A local edit
 copies the affected pages and their record payloads; retained snapshots share
 unchanged pages. Beginning a session, staging a mutator and committing still
