@@ -675,19 +675,21 @@ const std::vector<Id>& RangeIncidence(const editing_detail::Snapshot& snapshot,
                                       ElementIdentity source) {
   if constexpr (std::is_same_v<Element, Edge>) {
     return snapshot.state->vertices.Get(Local(source)).edges;
-  } else if constexpr (std::is_same_v<Element, Corner>) {
-    switch (source.Kind()) {
-      case ElementKind::kVertex:
-        return snapshot.state->vertices.Get(Local(source)).corners;
-      case ElementKind::kEdge:
-        return snapshot.state->edges.Get(Local(source)).corners;
-      case ElementKind::kFace:
-        return snapshot.state->faces.Get(Local(source)).corners;
-      default:
-        break;
+  } else {
+    if constexpr (std::is_same_v<Element, Corner>) {
+      switch (source.Kind()) {
+        case ElementKind::kVertex:
+          return snapshot.state->vertices.Get(Local(source)).corners;
+        case ElementKind::kEdge:
+          return snapshot.state->edges.Get(Local(source)).corners;
+        case ElementKind::kFace:
+          return snapshot.state->faces.Get(Local(source)).corners;
+        default:
+          break;
+      }
     }
+    Fail(EditorErrorCode::kInvalidObject, "Invalid snapshot incidence source");
   }
-  Fail(EditorErrorCode::kInvalidObject, "Invalid snapshot incidence source");
 }
 template <class Element>
 std::uint64_t RangeLimit(const editing_detail::Snapshot& snapshot,
