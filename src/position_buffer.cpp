@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include "meshvale/geometry/position_buffer.h"
 
+#include <Eigen/Core>
 #include <algorithm>
 #include <cstring>
 #include <limits>
