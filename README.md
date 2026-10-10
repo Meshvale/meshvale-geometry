@@ -2,7 +2,7 @@
 
 A C++20 library for polygon mesh geometry and attributes.
 
-**Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Further geometry operations, format adapters, stable interfaces and released packages are forthcoming.
+**Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, exact native polygon triangulation, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Triangulation bindings, further operations, format adapters, stable interfaces and released packages are forthcoming.
 
 See [the storage contract and native build instructions](docs/attributes.md), [topology inspection contract](docs/topology.md), [Python buffer records and installation](docs/python.md), [report envelopes and reference validation](docs/reports.md), [installed native consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
 
@@ -15,6 +15,11 @@ computation uses immutable snapshots and a shared worker budget. See the
 [installed editing example](examples/editing-consumer/CMakeLists.txt) for the
 separate `meshvale::editing` target. Editing bindings and stable compatibility
 are forthcoming.
+
+The [native triangulation contract](docs/triangulation.md) describes explicit
+conversion of simple exactly planar polygon faces, authored face/corner maps,
+channel backing and shared execution. Approximate-planarity profiles and Python
+conversion bindings are forthcoming.
 
 ## Planned capabilities
 
