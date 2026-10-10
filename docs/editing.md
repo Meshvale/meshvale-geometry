@@ -3,14 +3,17 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-EDIT-001 |
-| Version | 0.1.0 |
-| Status | Draft interface contract; not implemented |
+| Version | 0.2.0 |
+| Status | Native development interface; no stable API/ABI or release |
 | Owner | Geometry |
 | Related | [Raw storage](attributes.md), [incidence inspection](topology.md) |
 
-This contract describes the selected direction for runtime editing. The current
-`Mesh` record remains a dense interchange/algorithm input with its existing
-mutation limits. There is no `EditableMesh` interface in the installed package yet.
+This contract owns the native pooled editor in
+[`editable_mesh.h`](../include/meshvale/geometry/editable_mesh.h), linked through
+`meshvale::editing`. The current `Mesh` record remains a dense
+interchange/algorithm input with its existing mutation limits. Python continues
+to expose the separate immutable raw-record interface; it does not expose the
+editor yet.
 
 ## Objects and ownership
 
@@ -84,10 +87,15 @@ policy. Snapshot iteration order and dense row positions are not identity.
 Undo/history is a separate future contract; rollback does not imply resurrection
 of deleted objects.
 
-The intended call flow is `mesh.BeginEdit()`, session-owned creation/property
-updates, `session.Commit()`, then `mesh.Snapshot()`. A face construction names
-each corner's vertex and outgoing edge. This is interface direction rather than
-compilable API; exact declarations will live in the future public header.
+The call flow is `mesh.BeginEdit()`, session-owned creation/property updates,
+`session.Commit()`, then `mesh.Snapshot()`. A face construction names each
+corner's vertex and outgoing edge. Exact declarations live in the public header.
+
+`session.Snapshot()` owns a candidate observation: `IsCandidate()` is true and
+`Revision()` identifies the base accepted revision, not a committed result.
+Captured candidate data remains queryable after discard, but its pending objects
+never become valid in the accepted mesh. Accepted snapshots report
+`IsCandidate()` false. Dense materialization retains the same provenance.
 
 **EDIT-007.** Substantial computation should first evaluate parallel decomposition.
 Independent analysis and candidate computation may use immutable owned snapshots
@@ -127,4 +135,105 @@ objects, slot reuse and owner moves/forks; conflicting sessions and failure
 rollback; non-manifold/wire/parallel-edge topology; dense and ragged attributes
 across multiple UV/influence sets; snapshot lifetime and explicit export maps.
 Parallel tests need deterministic results, cancellation and worker-budget evidence.
-No current library test establishes these future editing guarantees.
+Native acceptance tests exercise these contracts with active checks in Release
+builds, and a separate installed consumer links only the exported editing target.
+Platform and sanitizer coverage is recorded by repository checks; a passing
+functional concurrency test does not establish race-detector coverage.
+
+## Using the native editor
+
+The owner is move-only. Its typed objects are copyable references to checked
+identity, without setters or exposed pool positions. A default object is invalid;
+`IsValid()` returns false. Queries on stale or destroyed-owner objects throw
+`EditorError`. A default snapshot throws `kInvalidObject` on access. Snapshot
+queries resolve their captured state, even when an object is now stale in the
+accepted owner.
+
+```cpp
+#include <meshvale/geometry/editable_mesh.h>
+
+meshvale::geometry::EditableMesh mesh;
+auto edit = mesh.BeginEdit();
+auto vertex = edit.CreateVertex({1.0, 2.0, 3.0});
+// vertex.IsValid() is false until this session commits.
+auto changes = edit.Commit();
+auto snapshot = mesh.Snapshot();
+auto position = snapshot.Position(vertex);
+```
+
+`CreateFace` requires at least three ordered corners and edges connecting each
+corner vertex to its successor. It accepts repeated vertices and concave or
+non-planar loops; it verifies connectivity rather than geometric validity.
+`ImportMesh` requires raw storage inspection to pass and reports
+`derived-undirected-endpoint-pair`. Its correspondence preserves source dense
+vertex/face/corner order and includes the derived edge table. Face winding and
+corner channel values are retained.
+
+Properties cover vertex, edge, face and corner domains. Names are unique within
+a domain. `PropertyDescriptor` declares scalar type, component width, ragged
+shape and the policy for new elements. Missing rows retain typed backing values;
+neither UV interpolation nor skin-weight normalization is implicit.
+`kRequireExplicit` rejects creation without a supplied row and cannot initialize
+an already populated domain without rows. A property descriptor/default is an
+editing policy; raw `Mesh` export retains channel values and metadata but has no
+field for this future-row policy or runtime identity.
+
+Expected failures carry an `EditorErrorCode`; allocation and worker-creation
+failures propagate as standard exceptions. Failed mutators retain the previous
+candidate as well as accepted state. A canceled/conflicting commit leaves the
+session available for inspection/discard. Successful commit closes it. No implicit
+rebase, topology interpolation, undo or history-resurrection policy is provided.
+
+## Execution and thread safety
+
+An `EditorSnapshot` is immutable and shareable between threads. Different
+sessions may compute candidates concurrently; each session is confined to the
+thread that began it. The owner serializes publication, and exactly one
+same-base candidate can commit before the others conflict. Current object
+queries and accepted snapshot capture coordinate with commits. Moving or
+destroying the aggregate object itself requires external synchronization with
+calls on that same C++ object; this does not prevent retained snapshots from
+outliving it.
+
+`ComputeBounds(snapshot, execution, stop)` partitions immutable vertex pages
+across CPU threads and reduces exact componentwise minima/maxima in traversal
+order, without fast-math. Coordinates are finite by the editor's storage
+preconditions. `ExecutionContext` copies share a budget for library-created
+worker threads across overlapping calls. External caller threads are outside
+that cap. `ActiveWorkers()`/`PeakWorkers()` count reserved worker slots;
+`BoundsResult::workers_used` reports threads successfully created and joined
+for that call. Reservations are released on cancellation and exceptions.
+Cancellation is cooperative: a request observed before the completion check
+throws `kCanceled`; a request racing completed work can return a complete result.
+Observing reserved workers does not pause that work or guarantee its remaining
+duration.
+
+A zero configured budget selects hardware concurrency, with a minimum of one.
+The default parallel threshold is 65,536 live vertices. Worker count is also
+limited by a grain of half the threshold, with a minimum grain of one. Empty
+input, small input,
+a budget of one, unavailable shared capacity or fewer than two pool pages use
+the caller thread and supply a `serial_reason`. Threshold and budget are explicit
+options, not a guarantee that a parallel run is faster. GPU and process backends
+are not implemented. Backend changes require their own transfer, safety and
+numerical proof under EDIT-007.
+
+## Storage cost and installation
+
+The implementation uses private 64-record copy-on-write pages. A local edit
+copies the affected pages and their record payloads; retained snapshots share
+unchanged pages. Beginning a session, staging a mutator and committing still
+copy page-directory/free-list metadata and change logs. This is not constant-time
+editing, and many single-element mutators can accumulate substantial bookkeeping
+cost. Bulk raw import builds unpublished storage directly and produces full
+dense correspondence, with its traversal and allocation cost. Adding a property
+initializes its whole domain; full dense materialization/export traverses and
+copies the mesh. Large-scale batch editing and undo remain future work.
+
+Use the [native build/install commands](attributes.md#build-and-installed-consumer).
+The raw target `meshvale::geometry` remains header-only; `meshvale::editing` is a
+compiled static C++20 target with the platform thread dependency. The separate
+[`editing-consumer`](../examples/editing-consumer/CMakeLists.txt) uses
+`find_package(MeshvaleGeometry CONFIG REQUIRED)` without source include paths.
+Native installed binaries need a matching compiler/runtime configuration; the
+unreleased package version supplies no stable ABI guarantee.

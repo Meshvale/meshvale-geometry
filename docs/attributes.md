@@ -10,13 +10,13 @@ Canonical public headers use `.h`, including `topology.h` and the optional Pytho
 
 Indices are current storage positions, not persistent source identities. Mutating a vector can invalidate references and indices. No borrowed-view lifetime or compaction guarantee is provided by this initial API. Copying a mesh owns independent copies of its arrays.
 
-`Mesh` is a raw data record, not an incremental editor. Inserting or erasing position/corner/face rows directly can invalidate connectivity and misassociate attributes, even when counts and index ranges still pass storage checks. Structural edits must rebuild every affected loop and domain channel, including dense/ragged values and presence masks, with correspondence. Copy-producing operations can construct and verify a complete candidate before accepting it. The [pooled editing contract](editing.md) describes the selected object/transaction direction for a future editor; no safe arbitrary in-place insertion/deletion interface is currently provided.
+`Mesh` is a raw data record, not an incremental editor. Inserting or erasing position/corner/face rows directly can invalidate connectivity and misassociate attributes, even when counts and index ranges still pass storage checks. Structural edits must rebuild every affected loop and domain channel, including dense/ragged values and presence masks, with correspondence. Copy-producing operations can construct and verify a complete candidate before accepting it. The separate [pooled editor](editing.md) owns checked element objects and transactional insertion/deletion; it can import structurally valid raw records and export supported projections with correspondence.
 
 ## Extensible channels
 
 An `Attribute` has a domain, name, open semantic label, optional set index, component width, typed values and optional metadata. Supported domains are vertex, face and corner. A `(domain, name)` pair is unique within a mesh; identical names in different domains are distinct. Semantic labels and metadata are descriptive and do not imply that an operation understands the channel.
 
-The initial scalar storage types are float32, float64, int32, uint8, uint16, uint32 and uint64. Adding channels does not require changing a fixed vertex struct. Edge attributes need a future edge-identity contract.
+The initial scalar storage types are float32, float64, int32, uint8, uint16, uint32 and uint64. Adding channels does not require changing a fixed vertex struct. Edge attributes are available in the [explicit edge editor](editing.md), but cannot be represented by this raw record.
 
 | Example | Domain | Representation |
 |---|---|---|
@@ -49,5 +49,11 @@ cmake --install .local/build --config Release --prefix .local/install
 ```
 
 Configure `examples/consumer` in a separate build directory with `CMAKE_PREFIX_PATH` set to the absolute installed prefix. The consumer uses `find_package(MeshvaleGeometry CONFIG REQUIRED)` and links `meshvale::geometry`, without source-tree include paths or private coordination access. The package requires C++20 transitively.
+
+`meshvale::geometry` remains header-only. The same package also installs the
+compiled static target `meshvale::editing` and its platform thread dependency;
+see [editor installation](editing.md#storage-cost-and-installation). Installing
+the full native package therefore requires building first, even when a downstream
+consumer uses only raw headers.
 
 Exact `vMAJOR.MINOR.PATCH` Git tags supply released package versions. Untagged builds use `0.0.0` as an unreleased development snapshot, not a compatibility or release claim. The package-version check is exact and supplies no native ABI guarantee.

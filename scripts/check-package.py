@@ -30,7 +30,7 @@ def inspect(path):
         names = []
         allowed = {".clang-format","CMakeLists.txt","pyproject.toml","README.md","AGENTS.md","ENVIRONMENT.md",
                    "environment.example.json","LICENSE","NOTICE","CHANGELOG.md","PKG-INFO"}
-        directories = {"cmake","include","python","docs","examples","tests","licenses"}
+        directories = {"cmake","include","src","python","docs","examples","tests","licenses"}
         for member in members:
             assert member.isfile(), member.name
             parts = PurePosixPath(member.name).parts
@@ -48,6 +48,10 @@ def inspect(path):
             for extension in ["h", "hpp"]:
                 assert "include/meshvale/geometry/" + header + "." + extension in names
         assert "tests/python/test_mesh.py" in names
+        assert "include/meshvale/geometry/editable_mesh.h" in names
+        assert "src/editable_mesh.cpp" in names
+        assert "tests/editing.cpp" in names
+        assert "examples/editing-consumer/main.cpp" in names
         assert "python/meshvale_reports/report-v1.schema.json" in names
         assert "tests/reports/test_reports.py" in names
     print(f"Package content check passed: {path.name}; {len(names)} files")
