@@ -245,7 +245,7 @@ void ParentLifetimeAndThreads() {
   auto session = mesh.BeginEdit();
   auto discarded = session.BeginBatch();
   session.Discard();
-  RequireError([&] { discarded.CreateVertex({0, 0, 0}); },
+  RequireError([&] { (void)discarded.CreateVertex({0, 0, 0}); },
                EditorErrorCode::kSessionClosed,
                "batch survived explicit parent discard");
   auto threaded = mesh.BeginEdit();
