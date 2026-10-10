@@ -1413,10 +1413,10 @@ void EditBatch::EraseFace(Face face, UnusedEdgePolicy policy) {
     throw;
   }
 }
-Property EditBatch::CreateProperty(PropertyDescriptor descriptor) {
+Property EditBatch::CreateProperty(const PropertyDescriptor& descriptor) {
   try {
     Check();
-    return draft_.CreateProperty(std::move(descriptor));
+    return draft_.CreateProperty(descriptor);
   } catch (...) {
     Close();
     throw;

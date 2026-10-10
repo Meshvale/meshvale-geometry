@@ -392,7 +392,7 @@ class EditBatch {
   void EraseEdge(Edge edge,
                  ErasePolicy policy = ErasePolicy::kRejectReferenced);
   void EraseFace(Face face, UnusedEdgePolicy policy = UnusedEdgePolicy::kKeep);
-  [[nodiscard]] Property CreateProperty(PropertyDescriptor descriptor);
+  [[nodiscard]] Property CreateProperty(const PropertyDescriptor& descriptor);
   void RemoveProperty(Property property);
   void SetPropertyRow(Property property, ElementIdentity element,
                       PropertyRow row);
