@@ -38,8 +38,14 @@ int main() {
     throw std::runtime_error("integer joint encoding");
   auto owned = sums.CopyValues();
   sums = {};
-  if (std::get<std::vector<double>>(owned)[0] != 1.5)
+  if (std::get<ScalarBuffer<double>>(owned)[0] != 1.5)
     throw std::runtime_error("owned numerical export");
+  ScalarBuffer<std::uint64_t> canonical{9007199254740993ULL};
+  canonical.reserve(8);
+  auto copy = canonical;
+  canonical[0] = 1;
+  if (copy.front() != 9007199254740993ULL || copy.capacity() != copy.size())
+    throw std::runtime_error("installed scalar owner dependency closure");
   std::cout << "Installed typed row reductions, five influences, missing/empty "
                "rows, corner normals and uint64 IDs passed\n";
 }

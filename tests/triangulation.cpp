@@ -27,7 +27,7 @@ void Require(bool value, const char* message) {
   if (!value) throw std::runtime_error(message);
 }
 template <class T>
-bool BitsEqual(const std::vector<T>& a, const std::vector<T>& b) {
+bool BitsEqual(const ScalarBuffer<T>& a, const ScalarBuffer<T>& b) {
   return a.size() == b.size() &&
          (a.empty() ||
           std::memcmp(a.data(), b.data(), a.size() * sizeof(T)) == 0);

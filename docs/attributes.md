@@ -16,7 +16,14 @@ Indices are current storage positions, not persistent source identities. Mutatin
 
 An `Attribute` has a domain, name, open semantic label, optional set index, component width, typed values and optional metadata. Supported domains are vertex, face and corner. A `(domain, name)` pair is unique within a mesh; identical names in different domains are distinct. Semantic labels and metadata are descriptive and do not imply that an operation understands the channel.
 
-The initial scalar storage types are float32, float64, int32, uint8, uint16, uint32 and uint64. Adding channels does not require changing a fixed vertex struct. Edge attributes are available in the [explicit edge editor](editing.md), but cannot be represented by this raw record.
+The scalar storage types are float32, float64, int32, uint8, uint16, uint32 and
+uint64. Each canonical value buffer owns an Eigen vector behind the compiled
+`ScalarBuffer<T>` interface. See [numerical ownership](numerics.md#canonical-attribute-ownership)
+for raw-bit preservation, borrowing, copy/move/failure behavior and the intentional
+C++ source/ABI migration from vector alternatives. Dense/ragged row metadata stays
+independent of that allocation. Adding channels does not require changing a fixed
+vertex struct. Edge attributes are available in the [explicit edge editor](editing.md),
+but cannot be represented by this raw record.
 
 | Example | Domain | Representation |
 |---|---|---|

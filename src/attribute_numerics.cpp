@@ -180,10 +180,11 @@ struct Capture {
   bool sparse = false;
   std::uint32_t components = 1;
 };
-template <class T>
-OwnedArray<T> CopyBits(const std::vector<T>& source,
-                       const ExecutionContext& execution, std::stop_token stop,
-                       std::size_t& peak) {
+template <class Values>
+OwnedArray<typename Values::value_type> CopyBits(
+    const Values& source, const ExecutionContext& execution,
+    std::stop_token stop, std::size_t& peak) {
+  using T = typename Values::value_type;
   OwnedArray<T> result(execution, source.size(), stop, peak);
   for (std::size_t first = 0; first < source.size();) {
     CheckStop(stop);
@@ -319,7 +320,7 @@ AttributeValues AttributeReductionResult::CopyValues() const {
       [](const auto& values) -> AttributeValues {
         using T =
             std::remove_cv_t<std::remove_pointer_t<decltype(values.Data())>>;
-        std::vector<T> result(values.size());
+        ScalarBuffer<T> result(values.size());
         if (!result.empty())
           std::memcpy(result.data(), values.Data(), result.size() * sizeof(T));
         return result;

@@ -409,6 +409,18 @@ PositionBuffer Copy(const PositionBuffer& values, Context& context) {
   }
   return copied;
 }
+template <class T>
+ScalarBuffer<T> Copy(const ScalarBuffer<T>& values, Context& context) {
+  // Preserve the existing scalar-copy cancellation interval.
+  constexpr std::size_t kCopyCheckpointScalars = 256;
+  ScalarBuffer<T> copied;
+  copied.reserve(values.size());
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i % kCopyCheckpointScalars == 0) context.Check();
+    copied.push_back(values[i]);
+  }
+  return copied;
+}
 Attribute Descriptor(const Attribute& source, Context& context) {
   context.Check();
   Attribute output;

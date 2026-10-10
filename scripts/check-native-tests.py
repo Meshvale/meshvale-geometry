@@ -18,7 +18,8 @@ def main():
     names = [test['name'] for test in tests]
     expected = {'attribute_storage', 'polygon_topology', 'pooled_editing',
                 'shared_execution_leases', 'exact_polygon_triangulation',
-                'triangulation_fraction_oracle', 'checked_attribute_numerics'}
+                'triangulation_fraction_oracle', 'checked_attribute_numerics',
+                'eigen_scalar_storage'}
     if args.allocation_probe == 'enabled':
         expected.update({'execution_allocation_failure',
                          'attribute_numerics_allocation_failure'})

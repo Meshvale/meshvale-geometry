@@ -26,9 +26,9 @@ int main() {
       result.mesh->face_count() != 3 ||
       result.face_output_offsets != std::vector<index_t>{0, 3})
     throw std::runtime_error("Concave triangulation was not accepted");
-  const auto& source_uv = std::get<std::vector<float>>(uv.values);
+  const auto& source_uv = std::get<ScalarBuffer<float>>(uv.values);
   const auto& output_uv =
-      std::get<std::vector<float>>(result.mesh->attributes[0].values);
+      std::get<ScalarBuffer<float>>(result.mesh->attributes[0].values);
   for (std::size_t i = 0; i < result.corner_sources.size(); ++i) {
     if (result.mesh->corner_vertices[i] !=
         source.corner_vertices[result.corner_sources[i]])

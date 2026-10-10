@@ -13,7 +13,10 @@ Raw positions use an owned row-major Eigen 3.4.1 implementation behind
 expose owned xyz row values without Eigen types. See [numerical storage and
 dependency setup](docs/numerics.md) for the C++ source migration and pinned
 build dependency; polygon connectivity and owned Python records retain their
-existing shape.
+existing shape. All seven canonical attribute scalar encodings likewise own
+Eigen vectors through [`ScalarBuffer<T>`](include/meshvale/geometry/scalar_buffer.h),
+with independent offsets/presence and preserved authored bits. Native vector
+variant access requires the documented [source migration](docs/numerics.md#canonical-attribute-ownership).
 
 [Checked attribute row reductions](docs/numerics.md#attribute-row-reductions)
 provide typed dense/ragged weight sums and normal/tangent/UV/color squared norms
