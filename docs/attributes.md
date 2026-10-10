@@ -6,7 +6,7 @@ Canonical public headers use `.h`, including `topology.h` and the optional Pytho
 
 ## Mesh representation
 
-`Mesh` stores double-precision positions, ordered face offsets and corner-to-vertex indices. Consecutive offsets delimit variable-length faces, including triangles, quads and concave n-gons. The default empty mesh has offsets `{0}`. Raw fields can represent malformed input; `inspect_storage` diagnoses it without rewriting, triangulating or repairing the data.
+`Mesh` stores double-precision positions in an owned `PositionBuffer`, ordered face offsets and corner-to-vertex indices. The [numerical storage contract](numerics.md) owns explicit Get/Set/Append row access, byte transfer, Eigen 3.4.1 build setup and the intentional C++ source migration. Consecutive offsets delimit variable-length faces, including triangles, quads and concave n-gons. The default empty mesh has offsets `{0}`. Raw fields can represent malformed input; `inspect_storage` diagnoses it without rewriting, triangulating or repairing the data.
 
 Indices are current storage positions, not persistent source identities. Mutating a vector can invalidate references and indices. No borrowed-view lifetime or compaction guarantee is provided by this initial API. Copying a mesh owns independent copies of its arrays.
 
@@ -39,7 +39,7 @@ The separate [topology inspection interface](topology.md) builds an owned genera
 
 ## Build and installed consumer
 
-Use CMake 3.24 or newer and a C++20 compiler in its development environment. No native third-party dependency is needed for this storage slice.
+Use CMake 3.24 or newer and a C++20 compiler in its development environment. Source builds use the exact Eigen 3.4.1 private header dependency described in [numerical setup](numerics.md#dependency-and-installation). Installed consumers use the compiled Geometry library without Eigen headers.
 
 ```sh
 cmake -S . -B .local/build -DCMAKE_BUILD_TYPE=Release

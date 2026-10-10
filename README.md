@@ -8,6 +8,13 @@ ending in `.hpp` have been removed. Python record consumers explicitly compile
 the installed adapter source for their own extension domain; native builds do
 not require Python.
 
+Raw positions use an owned row-major Eigen 3.4.1 implementation behind
+[`PositionBuffer`](include/meshvale/geometry/position_buffer.h). Public headers
+expose owned xyz row values without Eigen types. See [numerical storage and
+dependency setup](docs/numerics.md) for the C++ source migration and pinned
+build dependency; polygon connectivity and owned Python records retain their
+existing shape.
+
 **Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, exact native/Python polygon triangulation, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Further operations, format adapters, stable interfaces and released packages are forthcoming.
 
 See [the storage contract and native build instructions](docs/attributes.md), [topology inspection contract](docs/topology.md), [Python buffer records and installation](docs/python.md), [report envelopes and reference validation](docs/reports.md), [installed native consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).

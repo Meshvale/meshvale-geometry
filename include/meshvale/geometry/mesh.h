@@ -3,14 +3,14 @@
 #define MESHVALE_GEOMETRY_MESH_H_
 
 #include <meshvale/geometry/attributes.h>
+#include <meshvale/geometry/position_buffer.h>
 
-#include <array>
 #include <vector>
 
 namespace meshvale::geometry {
 
 struct Mesh {
-  std::vector<std::array<double, 3>> positions;
+  PositionBuffer positions;
   std::vector<index_t> face_offsets{0};
   std::vector<index_t> corner_vertices;
   std::vector<Attribute> attributes;

@@ -22,5 +22,6 @@ endif()
 install(TARGETS meshvale_record_consumer LIBRARY DESTINATION .)
 if(SKBUILD)
   install(FILES ../../LICENSE ../../NOTICE ../../licenses/nanobind.txt ../../licenses/robin-map.txt
+    ../../licenses/eigen-mpl2.txt ../../licenses/eigen-apache.txt ../../licenses/eigen-notices.txt
     DESTINATION "${SKBUILD_METADATA_DIR}/licenses")
 endif()

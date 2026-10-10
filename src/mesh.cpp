@@ -32,7 +32,7 @@ std::vector<Diagnostic> inspect_storage(const Mesh& mesh) {
     issues.push_back({std::move(code), std::move(subject), element});
   };
   for (index_t v = 0; v < mesh.positions.size(); ++v)
-    for (double coordinate : mesh.positions[v])
+    for (double coordinate : mesh.positions.Get(v))
       if (!std::isfinite(coordinate)) {
         issue("mesh.nonfinite_position", "positions", v);
         break;

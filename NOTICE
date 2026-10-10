@@ -4,6 +4,15 @@ Copyright 2026 CarlYaki and Meshvale contributors.
 Original material in this repository is licensed under the Apache License, Version 2.0.
 Third-party material retains its own license and attribution notices.
 
+Native position storage incorporates unmodified Eigen 3.4.1 Core headers.
+Eigen is principally MPL-2.0; the selected EIGEN_MPL2_ONLY subset also contains
+permissive notices. The MPL text, Apache text and included Core notices are
+retained in licenses/eigen-mpl2.txt, licenses/eigen-apache.txt and
+licenses/eigen-notices.txt, and accompany native/Python distributions.
+Eigen source is available from https://gitlab.com/libeigen/eigen/-/tree/3.4.1
+and the hash-pinned source archive declared in cmake/MeshvaleEigen.cmake.
+No Eigen source modifications are made by Meshvale.
+
 Optional Python extensions statically incorporate nanobind 3.1.0 (BSD-3-Clause)
 and its bundled tsl::robin_map headers (MIT). Their original notices are retained
 in licenses/nanobind.txt and licenses/robin-map.txt and packaged with Python builds.

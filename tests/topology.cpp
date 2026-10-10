@@ -40,9 +40,9 @@ TopologyCheckStatus coverage(const TopologyInspection& result,
 }
 Mesh mesh(index_t vertices, const std::vector<std::vector<index_t>>& faces) {
   Mesh result;
-  result.positions.resize(vertices);
+  result.positions.reserve(vertices);
   for (index_t v = 0; v < vertices; ++v)
-    result.positions[v] = {static_cast<double>(v), 0, 0};
+    result.positions.Append({static_cast<double>(v), 0, 0});
   for (const auto& face : faces) {
     result.corner_vertices.insert(result.corner_vertices.end(), face.begin(),
                                   face.end());
@@ -276,7 +276,7 @@ void malformed_storage_and_coverage() {
         "blocked/unsupported coverage conflated");
   }
   bad = good;
-  bad.positions[0][0] = std::numeric_limits<double>::infinity();
+  bad.positions.Set(0, {std::numeric_limits<double>::infinity(), 0, 0});
   Attribute invalid;
   invalid.name = "uv";
   invalid.domain = AttributeDomain::corner;
@@ -304,8 +304,8 @@ void ownership_determinism_and_coincident_positions() {
   TopologySnapshot snapshot;
   {
     auto input = mesh(6, {{0, 1, 2}, {3, 4, 5}});
-    std::fill(input.positions.begin(), input.positions.end(),
-              std::array<double, 3>{0, 0, 0});
+    for (std::size_t row = 0; row < input.positions.size(); ++row)
+      input.positions.Set(row, {0, 0, 0});
     auto a = inspect_topology(input), b = inspect_topology(input);
     require(
         a.topology == b.topology && a.topology->face_components().size() == 2,

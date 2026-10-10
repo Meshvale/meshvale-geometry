@@ -765,7 +765,9 @@ Mesh EditorSnapshot::ExportMesh() const {
   });
   auto dense = Materialize();
   Mesh result;
-  result.positions = std::move(dense.positions);
+  result.positions.reserve(dense.positions.size());
+  for (const auto& position : dense.positions)
+    result.positions.Append(position);
   result.face_offsets = std::move(dense.face_offsets);
   result.corner_vertices = std::move(dense.corner_vertices);
   for (auto& property : dense.properties) {
@@ -1132,8 +1134,9 @@ ImportResult EditableMesh::ImportMesh(const Mesh& mesh) {
   vertices.reserve(mesh.positions.size());
   faces.reserve(static_cast<std::size_t>(mesh.face_count()));
   corners.reserve(mesh.corner_vertices.size());
-  for (const auto& position : mesh.positions)
-    vertices.push_back(state->vertices.Add({position, {}, {}}, issue()));
+  for (std::size_t row = 0; row < mesh.positions.size(); ++row)
+    vertices.push_back(
+        state->vertices.Add({mesh.positions.Get(row), {}, {}}, issue()));
   std::map<std::array<Id, 2>, Id> edges;
   for (index_t f = 0; f < mesh.face_count(); ++f) {
     const auto face = state->faces.Add({}, issue());

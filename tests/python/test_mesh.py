@@ -2,6 +2,7 @@
 from array import array
 import gc
 import importlib.metadata
+import struct
 import unittest
 
 from meshvale_geometry import Mesh, __version__
@@ -92,6 +93,28 @@ class MeshTests(unittest.TestCase):
         self.assertEqual(list(survivor), expected["positions"])
         self.assertEqual(payload(snapshot.to_record()), expected)
         for _ in range(100): Mesh.from_record(snapshot.to_record()).inspect_topology()
+
+    def test_position_bytes_preserve_nonfinite_payloads(self):
+        expected = struct.pack("=6Q", 0x8000000000000000, 0x7ff8123456789abc,
+                               0x7ff0123456789abc, 0x3ff0000000000000,
+                               0x4000000000000000, 0x4008000000000000)
+        positions = array("d")
+        positions.frombytes(expected)
+        source = triangle()
+        source["positions"] = positions
+        source["face_offsets"] = array("Q", [7, 2])
+        source["corner_vertices"] = array("Q", [99])
+        snapshot = Mesh.from_record(source)
+        exported = snapshot.to_record()
+        copied = Mesh.from_record(exported)
+        positions[0] = 9.0
+        del source, snapshot, exported
+        gc.collect()
+        self.assertTrue(copied.inspect_storage())
+        survived = copied.to_record()
+        self.assertEqual(survived["positions"].tobytes(), expected)
+        self.assertEqual(list(survived["face_offsets"]), [7, 2])
+        self.assertEqual(list(survived["corner_vertices"]), [99])
 
     def test_polygon_nonmanifold_and_detached_inspection(self):
         source = triangle()

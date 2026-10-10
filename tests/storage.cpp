@@ -2,9 +2,14 @@
 #include <meshvale/geometry/mesh.h>
 
 #include <algorithm>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 
 using namespace meshvale::geometry;
 
@@ -130,10 +135,89 @@ void raw_defects() {
   require(has(inspect_storage(mesh), "mesh.empty_offsets"),
           "empty face offsets missed");
   mesh = mixed_mesh();
-  mesh.positions[0][0] = std::numeric_limits<double>::infinity();
+  mesh.positions.Set(0, {std::numeric_limits<double>::infinity(), 0, 0});
   require(has(inspect_storage(mesh), "mesh.nonfinite_position"),
           "nonfinite position missed");
   require(inspect_storage(Mesh{}).empty(), "empty mesh rejected");
+}
+void PositionOwnershipAndBytes() {
+  const std::array<std::uint64_t, 6> bits{
+      UINT64_C(0x8000000000000000), UINT64_C(0x7ff8123456789abc),
+      UINT64_C(0x7ff0123456789abc), UINT64_C(0x3ff0000000000000),
+      UINT64_C(0x4000000000000000), UINT64_C(0x4008000000000000)};
+  std::array<std::byte, sizeof(bits) + 1> misaligned{};
+  std::memcpy(misaligned.data() + 1, bits.data(), sizeof(bits));
+  PositionBuffer positions;
+  positions.AssignBytes({misaligned.data() + 1, sizeof(bits)});
+  auto copy = positions;
+  positions.Set(1, {9, 8, 7});
+  auto moved = std::move(copy);
+  require(copy.empty() && moved.size() == 2 && moved.Get(1)[2] == 3,
+          "position copies/moves borrowed or changed rows");
+  std::array<std::uint64_t, 6> exported{};
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "position byte transfer lost NaN/signed-zero bits");
+  moved.reserve(16);
+  require(moved.size() == 2, "reserve exposed uninitialized capacity rows");
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "position growth changed scalar bits");
+  auto row = moved.Get(0);
+  row[0] = 7;
+  require(std::bit_cast<std::uint64_t>(moved.Get(0)[0]) == bits[0],
+          "Get returned a borrowed position row");
+  bool rejected = false;
+  try {
+    (void)moved.Get(2);
+  } catch (const std::out_of_range&) {
+    rejected = true;
+  }
+  require(rejected, "invalid Get index accepted");
+  rejected = false;
+  try {
+    moved.Set(2, row);
+  } catch (const std::out_of_range&) {
+    rejected = true;
+  }
+  require(rejected, "invalid Set index accepted");
+  rejected = false;
+  try {
+    moved.AssignBytes({misaligned.data(), 1});
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  require(rejected && moved.size() == 2, "bad byte shape changed positions");
+  rejected = false;
+  try {
+    moved.CopyBytesTo({misaligned.data(), 1});
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  require(rejected, "bad destination extent accepted");
+  rejected = false;
+  try {
+    moved.reserve(std::numeric_limits<std::size_t>::max());
+  } catch (const std::length_error&) {
+    rejected = true;
+  }
+  require(rejected && moved.size() == 2, "shape overflow did not roll back");
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "failed mutation changed raw bytes");
+  auto* alias = &moved;
+  moved = std::move(*alias);
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "self move assignment changed raw bytes");
+  moved = *alias;
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "self copy assignment changed raw bytes");
+  require(moved.size() == 2, "self assignment lost ownership");
+  moved.clear();
+  moved.Append({4, 5, 6});
+  require(moved.size() == 1 && moved.Get(0)[0] == 4,
+          "clear/reuse exposed old rows");
+  PositionBuffer empty;
+  empty.AssignBytes({});
+  empty.CopyBytesTo({});
+  require(empty.empty(), "empty byte transfers changed shape");
 }
 int main() {
   try {
@@ -141,7 +225,8 @@ int main() {
     flexible_skinning();
     missing_rows_and_bad_storage();
     raw_defects();
-    std::cout << "Four storage suites passed\n";
+    PositionOwnershipAndBytes();
+    std::cout << "Five storage suites passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

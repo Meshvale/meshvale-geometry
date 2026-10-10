@@ -65,7 +65,7 @@ Mesh Read(std::istream& stream) {
       stream >> value;
       coordinate = std::bit_cast<double>(value);
     }
-    mesh.positions.push_back(point);
+    mesh.positions.Append(point);
   }
   for (std::size_t i = 0; i < faces; ++i) {
     const auto corners = ReadValues<index_t>(stream);
@@ -158,7 +158,7 @@ std::string Dump(const Mesh& mesh) {
     stream << '[';
     for (std::size_t a = 0; a < 3; ++a) {
       if (a) stream << ',';
-      stream << Bits(mesh.positions[i][a]);
+      stream << Bits(mesh.positions.Get(i)[a]);
     }
     stream << ']';
   }
