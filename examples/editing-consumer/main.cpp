@@ -2,6 +2,7 @@
 #include <meshvale/geometry/editable_mesh.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <iostream>
@@ -29,22 +30,33 @@ int main() {
     descriptor.semantic = "joint_index";
     descriptor.set_index = 1;
     descriptor.metadata = {{"skeleton", "installed-consumer"}};
-    const auto property = edit.CreateProperty(descriptor);
-    const auto a = edit.CreateVertex({0, 0, 0});
-    const auto b = edit.CreateVertex({1, 0, 0});
-    const auto c = edit.CreateVertex({0, 1, 0});
-    edit.SetPropertyRow(
+    auto batch = edit.BeginBatch();
+    const auto property = batch.CreateProperty(descriptor);
+    const auto a = batch.CreateVertex({0, 0, 0});
+    const auto b = batch.CreateVertex({1, 0, 0});
+    const auto c = batch.CreateVertex({0, 1, 0});
+    batch.SetPropertyRow(
         property, a.Identity(),
         {std::vector<std::uint64_t>{9007199254740993ULL, 42}, true});
-    const auto ab = edit.CreateEdge(a, b);
-    const auto bc = edit.CreateEdge(b, c);
-    const auto ca = edit.CreateEdge(c, a);
+    const auto ab = batch.CreateEdge(a, b);
+    const auto bc = batch.CreateEdge(b, c);
+    const auto ca = batch.CreateEdge(c, a);
     const std::array<FaceCorner, 3> corners{
         FaceCorner{a, ab, {}}, FaceCorner{b, bc, {}}, FaceCorner{c, ca, {}}};
-    const auto face = edit.CreateFace(corners);
+    const auto face = batch.CreateFace(corners);
     Require(!a.IsValid(), "pending element escaped before commit");
+    batch.Apply();
     (void)edit.Commit();
     const auto before = mesh.Snapshot();
+    const auto range = before.VertexElements();
+    std::size_t traversed_vertices = 0;
+    for (auto vertex : range) {
+      (void)before.Position(vertex);
+      ++traversed_vertices;
+    }
+    Require(traversed_vertices == 3 &&
+                before.ViewRow(property, a.Identity()).IsPresent(),
+            "installed snapshot traversal/row view lost records");
     const auto raw = before.ExportMesh();
     Require(raw.face_offsets == std::vector<index_t>{0, 3} &&
                 raw.attributes.size() == 1 &&

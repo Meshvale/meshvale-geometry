@@ -15,6 +15,7 @@
 namespace meshvale::geometry {
 namespace editing_detail {
 constexpr std::size_t kPageSize = 64;
+constexpr std::size_t kMinimumFaceCornerCount = 3;
 struct Id {
   std::uint64_t slot = 0;
   std::uint64_t generation = 0;
@@ -163,6 +164,8 @@ struct Session {
   std::uint64_t base_revision = 0;
   std::thread::id thread = std::this_thread::get_id();
   bool closed = false;
+  bool batch_active = false;
+  bool batch_draft = false;
   std::vector<ElementIdentity> created, erased;
 };
 struct Access {
@@ -198,6 +201,19 @@ struct Access {
     if (!snapshot.snapshot_)
       Fail(EditorErrorCode::kInvalidObject, "Snapshot is empty");
     return *snapshot.snapshot_;
+  }
+  template <class Element>
+  static SnapshotRange<Element> MakeRange(
+      std::shared_ptr<const Snapshot> snapshot,
+      std::optional<ElementIdentity> incidence = std::nullopt) {
+    return SnapshotRange<Element>(std::move(snapshot), incidence);
+  }
+  static PropertyRowView MakeRowView(std::shared_ptr<const Snapshot> snapshot,
+                                     const PropertyRow& row) {
+    PropertyRowView result;
+    result.snapshot_ = std::move(snapshot);
+    result.row_ = &row;
+    return result;
   }
   static EditSession MakeSession(std::unique_ptr<Session> session) {
     return EditSession(std::move(session));
@@ -284,6 +300,12 @@ void CheckSession(const Session* session) {
   std::lock_guard lock(session->owner->mutex);
   if (!session->owner->alive)
     Fail(EditorErrorCode::kOwnerDestroyed, "Owner was destroyed");
+}
+void CheckMutableSession(const Session* session) {
+  CheckSession(session);
+  if (session->batch_active)
+    Fail(EditorErrorCode::kBatchActive,
+         "Session has an active batch; apply or discard it first");
 }
 void Finite(std::array<double, 3> position) {
   for (double value : position)
@@ -475,6 +497,14 @@ void EraseFaceIn(State& state, std::uint64_t owner, Id face,
 template <class F>
 auto Mutate(Session& session, F&& operation) {
   CheckSession(&session);
+  if (session.batch_draft) {
+    // One metadata copy when the batch starts; detach again only if a caller
+    // captured an immutable draft snapshot between operations. Any failure
+    // closes the entire batch through its public facade.
+    if (session.candidate.use_count() != 1)
+      session.candidate = std::make_shared<State>(*session.candidate);
+    return operation(*session.candidate, session.created, session.erased);
+  }
   auto candidate = std::make_shared<State>(*session.candidate);
   auto created = session.created;
   auto erased = session.erased;
@@ -622,6 +652,227 @@ std::vector<Property> EditorSnapshot::Properties() const {
   return editing_detail::Objects<Property>(snapshot, snapshot.state->properties,
                                            ElementKind::kProperty);
 }
+namespace {
+template <class Element>
+constexpr ElementKind RangeKind() {
+  if constexpr (std::is_same_v<Element, Vertex>) return ElementKind::kVertex;
+  if constexpr (std::is_same_v<Element, Edge>) return ElementKind::kEdge;
+  if constexpr (std::is_same_v<Element, Face>) return ElementKind::kFace;
+  if constexpr (std::is_same_v<Element, Corner>) return ElementKind::kCorner;
+  if constexpr (std::is_same_v<Element, Property>)
+    return ElementKind::kProperty;
+}
+template <class Element>
+const auto& RangePool(const editing_detail::State& state) {
+  if constexpr (std::is_same_v<Element, Vertex>) return state.vertices;
+  if constexpr (std::is_same_v<Element, Edge>) return state.edges;
+  if constexpr (std::is_same_v<Element, Face>) return state.faces;
+  if constexpr (std::is_same_v<Element, Corner>) return state.corners;
+  if constexpr (std::is_same_v<Element, Property>) return state.properties;
+}
+template <class Element>
+const std::vector<Id>& RangeIncidence(const editing_detail::Snapshot& snapshot,
+                                      ElementIdentity source) {
+  if constexpr (std::is_same_v<Element, Edge>) {
+    return snapshot.state->vertices.Get(Local(source)).edges;
+  } else {
+    if constexpr (std::is_same_v<Element, Corner>) {
+      switch (source.Kind()) {
+        case ElementKind::kVertex:
+          return snapshot.state->vertices.Get(Local(source)).corners;
+        case ElementKind::kEdge:
+          return snapshot.state->edges.Get(Local(source)).corners;
+        case ElementKind::kFace:
+          return snapshot.state->faces.Get(Local(source)).corners;
+        default:
+          break;
+      }
+    }
+    Fail(EditorErrorCode::kInvalidObject, "Invalid snapshot incidence source");
+  }
+}
+template <class Element>
+std::uint64_t RangeLimit(const editing_detail::Snapshot& snapshot,
+                         std::optional<ElementIdentity> incidence) {
+  if (incidence) return RangeIncidence<Element>(snapshot, *incidence).size();
+  return RangePool<Element>(*snapshot.state).size;
+}
+}  // namespace
+
+template <class Element>
+SnapshotRange<Element>::SnapshotRange(
+    std::shared_ptr<const editing_detail::Snapshot> snapshot,
+    std::optional<ElementIdentity> incidence)
+    : snapshot_(std::move(snapshot)), incidence_(incidence) {}
+template <class Element>
+SnapshotRange<Element>::Iterator::Iterator(
+    std::shared_ptr<const editing_detail::Snapshot> snapshot,
+    std::optional<ElementIdentity> incidence, std::uint64_t position)
+    : snapshot_(std::move(snapshot)),
+      incidence_(incidence),
+      position_(position) {
+  SkipVacant();
+}
+template <class Element>
+void SnapshotRange<Element>::Iterator::SkipVacant() {
+  if (!snapshot_ || incidence_) return;
+  const auto& pool = RangePool<Element>(*snapshot_->state);
+  while (position_ < pool.size) {
+    if ((*pool.pages[static_cast<std::size_t>(
+            position_ / editing_detail::kPageSize)])[position_ %
+                                                     editing_detail::kPageSize]
+            .value)
+      break;
+    ++position_;
+  }
+}
+template <class Element>
+Element SnapshotRange<Element>::Iterator::operator*() const {
+  if (!snapshot_ || position_ >= RangeLimit<Element>(*snapshot_, incidence_))
+    Fail(EditorErrorCode::kInvalidObject, "Snapshot iterator is at end");
+  Id id;
+  if (incidence_) {
+    id = RangeIncidence<Element>(
+        *snapshot_, *incidence_)[static_cast<std::size_t>(position_)];
+  } else {
+    const auto& pool = RangePool<Element>(*snapshot_->state);
+    const auto& slot = (*pool.pages[static_cast<std::size_t>(
+        position_ / editing_detail::kPageSize)])[position_ %
+                                                 editing_detail::kPageSize];
+    id = {position_, slot.generation};
+  }
+  return Access::Make<Element>(snapshot_->control, snapshot_->owner, id,
+                               RangeKind<Element>());
+}
+template <class Element>
+typename SnapshotRange<Element>::Iterator&
+SnapshotRange<Element>::Iterator::operator++() {
+  if (!snapshot_ || position_ >= RangeLimit<Element>(*snapshot_, incidence_))
+    Fail(EditorErrorCode::kInvalidObject, "Snapshot iterator is at end");
+  ++position_;
+  SkipVacant();
+  return *this;
+}
+template <class Element>
+typename SnapshotRange<Element>::Iterator
+SnapshotRange<Element>::Iterator::operator++(int) {
+  auto previous = *this;
+  ++*this;
+  return previous;
+}
+template <class Element>
+bool SnapshotRange<Element>::Iterator::operator==(
+    const Iterator& other) const noexcept {
+  return snapshot_ == other.snapshot_ && incidence_ == other.incidence_ &&
+         position_ == other.position_;
+}
+template <class Element>
+typename SnapshotRange<Element>::Iterator SnapshotRange<Element>::begin()
+    const {
+  return Iterator(snapshot_, incidence_, 0);
+}
+template <class Element>
+typename SnapshotRange<Element>::Iterator SnapshotRange<Element>::end() const {
+  return Iterator(snapshot_, incidence_,
+                  snapshot_ ? RangeLimit<Element>(*snapshot_, incidence_) : 0);
+}
+template class SnapshotRange<Vertex>;
+template class SnapshotRange<Edge>;
+template class SnapshotRange<Face>;
+template class SnapshotRange<Corner>;
+template class SnapshotRange<Property>;
+
+const AttributeValues& PropertyRowView::Values() const {
+  if (!snapshot_ || !row_)
+    Fail(EditorErrorCode::kInvalidObject, "Property row view is empty");
+  return row_->values;
+}
+bool PropertyRowView::IsPresent() const {
+  if (!snapshot_ || !row_)
+    Fail(EditorErrorCode::kInvalidObject, "Property row view is empty");
+  return row_->present;
+}
+SnapshotRange<Vertex> EditorSnapshot::VertexElements() const {
+  (void)Access::GetSnapshot(*this);
+  return Access::MakeRange<Vertex>(snapshot_);
+}
+SnapshotRange<Edge> EditorSnapshot::EdgeElements() const {
+  (void)Access::GetSnapshot(*this);
+  return Access::MakeRange<Edge>(snapshot_);
+}
+SnapshotRange<Face> EditorSnapshot::FaceElements() const {
+  (void)Access::GetSnapshot(*this);
+  return Access::MakeRange<Face>(snapshot_);
+}
+SnapshotRange<Corner> EditorSnapshot::CornerElements() const {
+  (void)Access::GetSnapshot(*this);
+  return Access::MakeRange<Corner>(snapshot_);
+}
+SnapshotRange<Property> EditorSnapshot::PropertyElements() const {
+  (void)Access::GetSnapshot(*this);
+  return Access::MakeRange<Property>(snapshot_);
+}
+SnapshotRange<Edge> EditorSnapshot::EdgeElements(Vertex vertex) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, vertex.Identity(),
+        ElementKind::kVertex);
+  return Access::MakeRange<Edge>(snapshot_, vertex.Identity());
+}
+SnapshotRange<Corner> EditorSnapshot::CornerElements(Vertex vertex) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, vertex.Identity(),
+        ElementKind::kVertex);
+  return Access::MakeRange<Corner>(snapshot_, vertex.Identity());
+}
+SnapshotRange<Corner> EditorSnapshot::CornerElements(Edge edge) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, edge.Identity(), ElementKind::kEdge);
+  return Access::MakeRange<Corner>(snapshot_, edge.Identity());
+}
+SnapshotRange<Corner> EditorSnapshot::CornerElements(Face face) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, face.Identity(), ElementKind::kFace);
+  return Access::MakeRange<Corner>(snapshot_, face.Identity());
+}
+Vertex EditorSnapshot::GetVertex(Corner corner) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, corner.Identity(),
+        ElementKind::kCorner);
+  return Access::Make<Vertex>(
+      snapshot.control, snapshot.owner,
+      snapshot.state->corners.Get(Local(corner.Identity())).vertex,
+      ElementKind::kVertex);
+}
+Edge EditorSnapshot::GetEdge(Corner corner) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, corner.Identity(),
+        ElementKind::kCorner);
+  return Access::Make<Edge>(
+      snapshot.control, snapshot.owner,
+      snapshot.state->corners.Get(Local(corner.Identity())).edge,
+      ElementKind::kEdge);
+}
+Face EditorSnapshot::GetFace(Corner corner) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, corner.Identity(),
+        ElementKind::kCorner);
+  return Access::Make<Face>(
+      snapshot.control, snapshot.owner,
+      snapshot.state->corners.Get(Local(corner.Identity())).face,
+      ElementKind::kFace);
+}
+PropertyRowView EditorSnapshot::ViewRow(Property property,
+                                        ElementIdentity element) const {
+  const auto& snapshot = Access::GetSnapshot(*this);
+  Check(*snapshot.state, snapshot.owner, property.Identity(),
+        ElementKind::kProperty);
+  const auto& record =
+      *snapshot.state->properties.Get(Local(property.Identity()));
+  editing_detail::CheckRowElement(*snapshot.state, snapshot.owner, element,
+                                  record.descriptor.domain);
+  return Access::MakeRowView(snapshot_, record.rows.Get(Local(element)));
+}
+
 std::array<double, 3> EditorSnapshot::Position(Vertex vertex) const {
   const auto& snapshot = Access::GetSnapshot(*this);
   Check(*snapshot.state, snapshot.owner, vertex.Identity(),
@@ -807,7 +1058,7 @@ EditSession::~EditSession() = default;
 Vertex EditSession::CreateVertex(
     std::array<double, 3> position,
     std::span<const PropertyAssignment> properties) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Finite(position);
   const auto generation =
       editing_detail::Issue(session_->owner->next_generation);
@@ -825,7 +1076,7 @@ Vertex EditSession::CreateVertex(
 }
 Edge EditSession::CreateEdge(Vertex first, Vertex second,
                              std::span<const PropertyAssignment> properties) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   const auto generation =
       editing_detail::Issue(session_->owner->next_generation);
   return editing_detail::Mutate(*session_, [&](auto& state, auto& created,
@@ -850,8 +1101,8 @@ Edge EditSession::CreateEdge(Vertex first, Vertex second,
 }
 Face EditSession::CreateFace(std::span<const FaceCorner> corners,
                              std::span<const PropertyAssignment> properties) {
-  editing_detail::CheckSession(session_.get());
-  if (corners.size() < 3)
+  editing_detail::CheckMutableSession(session_.get());
+  if (corners.size() < editing_detail::kMinimumFaceCornerCount)
     Fail(EditorErrorCode::kInvalidTopology,
          "Face requires at least three corners");
   return editing_detail::Mutate(*session_, [&](auto& state, auto& created,
@@ -897,7 +1148,7 @@ Face EditSession::CreateFace(std::span<const FaceCorner> corners,
   });
 }
 void EditSession::SetPosition(Vertex vertex, std::array<double, 3> position) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Finite(position);
   editing_detail::Mutate(*session_, [&](auto& state, auto&, auto&) {
     Check(state, session_->owner->identity, vertex.Identity(),
@@ -906,7 +1157,7 @@ void EditSession::SetPosition(Vertex vertex, std::array<double, 3> position) {
   });
 }
 void EditSession::EraseFace(Face face, UnusedEdgePolicy policy) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Mutate(*session_, [&](auto& state, auto&, auto& erased) {
     Check(state, session_->owner->identity, face.Identity(),
           ElementKind::kFace);
@@ -915,7 +1166,7 @@ void EditSession::EraseFace(Face face, UnusedEdgePolicy policy) {
   });
 }
 void EditSession::EraseEdge(Edge edge, ErasePolicy policy) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Mutate(*session_, [&](auto& state, auto&, auto& erased) {
     Check(state, session_->owner->identity, edge.Identity(),
           ElementKind::kEdge);
@@ -924,7 +1175,7 @@ void EditSession::EraseEdge(Edge edge, ErasePolicy policy) {
   });
 }
 void EditSession::EraseVertex(Vertex vertex, ErasePolicy policy) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Mutate(*session_, [&](auto& state, auto&, auto& erased) {
     Check(state, session_->owner->identity, vertex.Identity(),
           ElementKind::kVertex);
@@ -951,7 +1202,7 @@ void EditSession::EraseVertex(Vertex vertex, ErasePolicy policy) {
   });
 }
 Property EditSession::CreateProperty(PropertyDescriptor descriptor) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   if (descriptor.name.empty() || descriptor.components == 0)
     Fail(EditorErrorCode::kInvalidProperty,
          "Property needs a name and nonzero component count");
@@ -989,7 +1240,7 @@ Property EditSession::CreateProperty(PropertyDescriptor descriptor) {
   });
 }
 void EditSession::RemoveProperty(Property property) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Mutate(*session_, [&](auto& state, auto&, auto& erased) {
     Check(state, session_->owner->identity, property.Identity(),
           ElementKind::kProperty);
@@ -999,7 +1250,7 @@ void EditSession::RemoveProperty(Property property) {
 }
 void EditSession::SetPropertyRow(Property property, ElementIdentity element,
                                  PropertyRow row) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   editing_detail::Mutate(*session_, [&](auto& state, auto&, auto&) {
     Check(state, session_->owner->identity, property.Identity(),
           ElementKind::kProperty);
@@ -1016,8 +1267,23 @@ EditorSnapshot EditSession::Snapshot() const {
   editing_detail::CheckSession(session_.get());
   return Access::MakeSnapshot(session_->owner, session_->candidate, true);
 }
+EditBatch EditSession::BeginBatch() {
+  editing_detail::CheckMutableSession(session_.get());
+  auto draft = std::make_unique<editing_detail::Session>();
+  draft->owner = session_->owner;
+  draft->candidate =
+      std::make_shared<editing_detail::State>(*session_->candidate);
+  draft->base_revision = session_->base_revision;
+  draft->created = session_->created;
+  draft->erased = session_->erased;
+  draft->batch_draft = true;
+  // Construction can allocate; activate the parent only after it succeeds.
+  EditBatch result(session_, std::move(draft));
+  session_->batch_active = true;
+  return result;
+}
 CommitResult EditSession::Commit(std::stop_token stop) {
-  editing_detail::CheckSession(session_.get());
+  editing_detail::CheckMutableSession(session_.get());
   if (stop.stop_requested())
     Fail(EditorErrorCode::kCanceled, "Commit canceled");
   if (session_->base_revision == std::numeric_limits<std::uint64_t>::max())
@@ -1055,6 +1321,162 @@ void EditSession::Discard() {
   editing_detail::CheckSession(session_.get());
   session_->closed = true;
   session_->candidate.reset();
+}
+
+EditBatch::EditBatch(std::weak_ptr<editing_detail::Session> parent,
+                     std::unique_ptr<editing_detail::Session> draft)
+    : parent_(std::move(parent)), draft_(std::move(draft)) {}
+EditBatch::EditBatch(EditBatch&&) noexcept = default;
+EditBatch& EditBatch::operator=(EditBatch&& other) noexcept {
+  if (this != &other) {
+    Close();
+    parent_ = std::move(other.parent_);
+    draft_ = std::move(other.draft_);
+  }
+  return *this;
+}
+EditBatch::~EditBatch() { Close(); }
+void EditBatch::Check() const {
+  editing_detail::CheckSession(draft_.session_.get());
+  const auto parent = parent_.lock();
+  editing_detail::CheckSession(parent.get());
+  if (!parent->batch_active)
+    Fail(EditorErrorCode::kSessionClosed, "Batch is no longer active");
+}
+void EditBatch::Close() const noexcept {
+  if (!draft_.session_ || draft_.session_->closed) return;
+  draft_.session_->closed = true;
+  draft_.session_->candidate.reset();
+  if (const auto parent = parent_.lock()) parent->batch_active = false;
+}
+Vertex EditBatch::CreateVertex(std::array<double, 3> position,
+                               std::span<const PropertyAssignment> properties) {
+  try {
+    Check();
+    return draft_.CreateVertex(position, properties);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+Edge EditBatch::CreateEdge(Vertex first, Vertex second,
+                           std::span<const PropertyAssignment> properties) {
+  try {
+    Check();
+    return draft_.CreateEdge(first, second, properties);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+Face EditBatch::CreateFace(std::span<const FaceCorner> corners,
+                           std::span<const PropertyAssignment> properties) {
+  try {
+    Check();
+    return draft_.CreateFace(corners, properties);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::SetPosition(Vertex vertex, std::array<double, 3> position) {
+  try {
+    Check();
+    draft_.SetPosition(vertex, position);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::EraseVertex(Vertex vertex, ErasePolicy policy) {
+  try {
+    Check();
+    draft_.EraseVertex(vertex, policy);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::EraseEdge(Edge edge, ErasePolicy policy) {
+  try {
+    Check();
+    draft_.EraseEdge(edge, policy);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::EraseFace(Face face, UnusedEdgePolicy policy) {
+  try {
+    Check();
+    draft_.EraseFace(face, policy);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+Property EditBatch::CreateProperty(const PropertyDescriptor& descriptor) {
+  try {
+    Check();
+    return draft_.CreateProperty(descriptor);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::RemoveProperty(Property property) {
+  try {
+    Check();
+    draft_.RemoveProperty(property);
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::SetPropertyRow(Property property, ElementIdentity element,
+                               PropertyRow row) {
+  try {
+    Check();
+    draft_.SetPropertyRow(property, element, std::move(row));
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+EditorSnapshot EditBatch::Snapshot() const {
+  try {
+    Check();
+    return draft_.Snapshot();
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::Apply(std::stop_token stop) {
+  try {
+    Check();
+    if (stop.stop_requested())
+      Fail(EditorErrorCode::kCanceled, "Batch apply canceled");
+    const auto parent = parent_.lock();
+    // No allocation after the cancellation check. Parent mutation is blocked
+    // while this draft is active; all three noexcept swaps accept one unit.
+    parent->candidate.swap(draft_.session_->candidate);
+    parent->created.swap(draft_.session_->created);
+    parent->erased.swap(draft_.session_->erased);
+    Close();
+  } catch (...) {
+    Close();
+    throw;
+  }
+}
+void EditBatch::Discard() {
+  try {
+    Check();
+    Close();
+  } catch (...) {
+    Close();
+    throw;
+  }
 }
 
 EditableMesh::EditableMesh()
