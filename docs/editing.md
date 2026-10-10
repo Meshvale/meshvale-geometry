@@ -238,7 +238,7 @@ initializes its whole domain; full dense materialization/export traverses and
 copies the mesh. Large-scale batch editing and undo remain future work.
 
 Use the [native build/install commands](attributes.md#build-and-installed-consumer).
-The raw target `meshvale::geometry` remains header-only; `meshvale::editing` is a
+The raw target `meshvale::geometry` is a compiled static library; `meshvale::editing` is a
 compiled static C++20 target with the platform thread dependency. The separate
 [`editing-consumer`](../examples/editing-consumer/CMakeLists.txt) uses
 `find_package(MeshvaleGeometry CONFIG REQUIRED)` without source include paths.

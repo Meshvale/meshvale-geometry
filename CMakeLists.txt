@@ -15,11 +15,11 @@ if(Git_FOUND)
   endif()
 endif()
 
-add_library(meshvale_geometry INTERFACE)
+add_library(meshvale_geometry STATIC src/attributes.cpp src/mesh.cpp src/topology.cpp)
 add_library(meshvale::geometry ALIAS meshvale_geometry)
-set_target_properties(meshvale_geometry PROPERTIES EXPORT_NAME geometry)
-target_compile_features(meshvale_geometry INTERFACE cxx_std_20)
-target_include_directories(meshvale_geometry INTERFACE
+set_target_properties(meshvale_geometry PROPERTIES EXPORT_NAME geometry POSITION_INDEPENDENT_CODE ON)
+target_compile_features(meshvale_geometry PUBLIC cxx_std_20)
+target_include_directories(meshvale_geometry PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
@@ -35,22 +35,30 @@ set_target_properties(meshvale_geometry_triangulation PROPERTIES
   EXPORT_NAME triangulation POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(meshvale_geometry_triangulation PUBLIC meshvale::editing)
 if(MSVC)
+  target_compile_options(meshvale_geometry PRIVATE /W4 /WX)
   target_compile_options(meshvale_geometry_editing PRIVATE /W4 /WX)
   target_compile_options(meshvale_geometry_triangulation PRIVATE /W4 /WX /fp:strict)
 else()
+  target_compile_options(meshvale_geometry PRIVATE -Wall -Wextra -Wpedantic -Werror)
   target_compile_options(meshvale_geometry_editing PRIVATE -Wall -Wextra -Wpedantic -Werror)
   target_compile_options(meshvale_geometry_triangulation PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
 endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-install(TARGETS meshvale_geometry EXPORT MeshvaleGeometryTargets)
+install(TARGETS meshvale_geometry EXPORT MeshvaleGeometryTargets
+  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(TARGETS meshvale_geometry_editing EXPORT MeshvaleGeometryTargets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(TARGETS meshvale_geometry_triangulation EXPORT MeshvaleGeometryTargets
   ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}")
 install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(EXPORT MeshvaleGeometryTargets NAMESPACE meshvale::
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
+set(MeshvaleGeometry_RECORD_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/python/record.cpp")
+include(cmake/MeshvaleGeometryPythonRecord.cmake)
+install(FILES src/python/record.cpp DESTINATION "${CMAKE_INSTALL_DATADIR}/MeshvaleGeometry/python")
+install(FILES cmake/MeshvaleGeometryPythonRecord.cmake
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/MeshvaleGeometry")
 configure_package_config_file(cmake/MeshvaleGeometryConfig.cmake.in
   "${CMAKE_CURRENT_BINARY_DIR}/MeshvaleGeometryConfig.cmake"
@@ -80,13 +88,12 @@ if(MESHVALE_GEOMETRY_PYTHON)
     OUTPUT_VARIABLE meshvale_nanobind_dir OUTPUT_STRIP_TRAILING_WHITESPACE COMMAND_ERROR_IS_FATAL ANY)
   find_package(nanobind 3.1 CONFIG REQUIRED HINTS "${meshvale_nanobind_dir}")
   nanobind_add_module(_geometry NB_STATIC NB_DOMAIN meshvale_geometry python/bindings.cpp)
-  foreach(meshvale_record_extension IN ITEMS h hpp)
-    set(meshvale_record_probe "${CMAKE_CURRENT_BINARY_DIR}/record_header_${meshvale_record_extension}.cpp")
-    file(WRITE "${meshvale_record_probe}"
-      "#include <meshvale/geometry/python/record.${meshvale_record_extension}>\n#include <meshvale/geometry/python/record.${meshvale_record_extension}>\n")
-    target_sources(_geometry PRIVATE "${meshvale_record_probe}")
-  endforeach()
-  target_link_libraries(_geometry PRIVATE meshvale::geometry)
+  meshvale_geometry_add_python_record(meshvale_geometry_record DOMAIN meshvale_geometry)
+  set(meshvale_record_probe "${CMAKE_CURRENT_BINARY_DIR}/record_header_h.cpp")
+  file(WRITE "${meshvale_record_probe}"
+    "#include <meshvale/geometry/python/record.h>\n#include <meshvale/geometry/python/record.h>\n")
+  target_sources(_geometry PRIVATE "${meshvale_record_probe}")
+  target_link_libraries(_geometry PRIVATE meshvale_geometry_record)
   if(MSVC)
     target_compile_options(_geometry PRIVATE /W4 /WX)
   else()
@@ -100,12 +107,10 @@ if(BUILD_TESTING)
   add_library(meshvale_geometry_header_checks OBJECT)
   target_link_libraries(meshvale_geometry_header_checks PRIVATE meshvale::geometry)
   foreach(meshvale_header IN ITEMS attributes mesh topology)
-    foreach(meshvale_extension IN ITEMS h hpp)
-      set(meshvale_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_header}_${meshvale_extension}.cpp")
-      file(WRITE "${meshvale_probe}"
-        "#include <meshvale/geometry/${meshvale_header}.${meshvale_extension}>\n#include <meshvale/geometry/${meshvale_header}.${meshvale_extension}>\n")
-      target_sources(meshvale_geometry_header_checks PRIVATE "${meshvale_probe}")
-    endforeach()
+    set(meshvale_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_header}_h.cpp")
+    file(WRITE "${meshvale_probe}"
+      "#include <meshvale/geometry/${meshvale_header}.h>\n#include <meshvale/geometry/${meshvale_header}.h>\n")
+    target_sources(meshvale_geometry_header_checks PRIVATE "${meshvale_probe}")
   endforeach()
   set(meshvale_editor_probe "${CMAKE_CURRENT_BINARY_DIR}/editable_mesh_h.cpp")
   file(WRITE "${meshvale_editor_probe}"

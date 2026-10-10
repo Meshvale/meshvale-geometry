@@ -2,7 +2,7 @@
 
 This development API stores raw polygon data and extensible attributes. The public types in `include/meshvale/geometry/mesh.h` and `attributes.h` own their exact C++ shapes. There is no stable API/ABI or software release yet.
 
-Canonical public headers use `.h`, including `topology.h` and the optional Python/nanobind adapter `python/record.h`. The previous `.hpp` paths remain installed forwarding headers that include the same definitions, with no separate types or runtime. New code uses canonical paths; existing C++ names and Python record/wire behavior are retained. Header conversion and Google formatting do not imply complete naming/style compliance or stable ABI. Each header is compiled independently; the Python adapter requires its documented Python/nanobind dependencies.
+Canonical public headers use `.h`, including `topology.h` and the optional Python/nanobind adapter `python/record.h`. Legacy `.hpp` forwarding paths have been removed; update includes to `.h` and link the installed compiled targets. Headers declare storage and topology operations; their detailed non-template implementations reside in `.cpp` files. Existing C++ names and Python record/wire behavior are retained. Each header is compiled independently; the Python adapter requires its documented opt-in implementation target and Python/nanobind dependencies. There is no stable ABI guarantee.
 
 ## Mesh representation
 
@@ -50,7 +50,9 @@ cmake --install .local/build --config Release --prefix .local/install
 
 Configure `examples/consumer` in a separate build directory with `CMAKE_PREFIX_PATH` set to the absolute installed prefix. The consumer uses `find_package(MeshvaleGeometry CONFIG REQUIRED)` and links `meshvale::geometry`, without source-tree include paths or private coordination access. The package requires C++20 transitively.
 
-`meshvale::geometry` remains header-only. The same package also installs the
+`meshvale::geometry` is a compiled static library with position-independent code.
+Its public target supplies C++20 and include directories; link it for storage and
+topology operations rather than using headers alone. The same package installs the
 compiled static target `meshvale::editing` and its platform thread dependency;
 see [editor installation](editing.md#storage-cost-and-installation). Installing
 the full native package therefore requires building first, even when a downstream

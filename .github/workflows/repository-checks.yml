@@ -38,6 +38,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Configure
         run: cmake -S . -B .local/build -DCMAKE_BUILD_TYPE=Release
+      - name: Configure native libraries without Python discovery
+        run: >-
+          cmake -S . -B .local/native-only -DBUILD_TESTING=OFF
+          -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_FIND_PACKAGE_Python=ON
+          -DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON -DCMAKE_DISABLE_FIND_PACKAGE_nanobind=ON
+      - name: Build native libraries without Python
+        run: cmake --build .local/native-only --config Release
       - name: Build and inspect storage
         run: cmake --build .local/build --config Release
       - name: Test

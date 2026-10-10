@@ -2,11 +2,24 @@
 #include <meshvale/geometry/python/record.h>
 #include <meshvale/geometry/topology.h>
 
+#include <cstdint>
+#include <limits>
+#include <vector>
+
 // This independent extension consumes installed headers and standard Python
 // records. It never imports or registers Geometry's Mesh Python type.
 NB_MODULE(meshvale_record_consumer, module) {
   namespace geo = meshvale::geometry;
   namespace nb = nanobind;
+  module.def("write_indices", [] {
+    const std::vector<std::uint64_t> indices{
+        0, (std::uint64_t{1} << 53) + 1,
+        std::numeric_limits<std::uint64_t>::max()};
+    return geo::python::write_buffer(indices, "Q");
+  });
+  module.def("empty_indices", [] {
+    return geo::python::write_buffer(std::vector<std::uint64_t>{}, "Q");
+  });
   module.def("inspect_record", [](nb::handle source) {
     const auto mesh = geo::python::from_record(source);
     const auto inspection = geo::inspect_topology(mesh);

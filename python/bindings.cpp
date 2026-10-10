@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/python/record.h>
 #include <meshvale/geometry/topology.h>
+#include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
 namespace nb = nanobind;

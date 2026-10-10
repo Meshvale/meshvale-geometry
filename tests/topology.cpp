@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/topology.h>
 
+#include <algorithm>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 
 using namespace meshvale::geometry;
 static_assert(std::is_const_v<std::remove_reference_t<

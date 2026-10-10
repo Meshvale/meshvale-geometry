@@ -63,6 +63,39 @@ The buffer lifetime requirements follow [Python's buffer protocol](https://docs.
 
 The [independent record consumer](../examples/record-consumer/CMakeLists.txt) compiles against installed native headers, in a separate nanobind domain, without importing or registering Geometry's Python `Mesh` type. Its [installed check](../examples/record-consumer/check.py) exercises round-trip buffers, native inspection, source destruction and both import orders in separate processes. It is a development consumer of the `0.0.0` native snapshot package, not a released application or proof of the complete processing workflow. The [fresh-environment runner](../scripts/test-installed.py) installs both candidate wheels outside the checkout; [archive checks](../scripts/check-package.py) inspect Geometry package contents. CI evaluates CPython 3.10/3.14 on hosted Windows/Linux/macOS; this is a test matrix, not a broad release support promise.
 
+### Compiled record adapter for another extension
+
+`python/record.h` declares record operations and retains a small `write_buffer`
+template forwarding to checked compiled buffer construction. Readers, buffer
+ownership and detailed conversion live in `record.cpp`. Calls require the GIL;
+all imported/exported payload remains independently owned as described above.
+
+The native installation supplies an implementation source and the
+`meshvale_geometry_add_python_record` CMake factory. Package discovery includes
+the factory without finding Python or nanobind. A consumer opts in after finding
+ordinary GIL-enabled Python and nanobind, then creates an `NB_STATIC` extension
+and a record target with the same explicit domain:
+
+```cmake
+find_package(MeshvaleGeometry CONFIG REQUIRED)
+find_package(Python 3.10 REQUIRED COMPONENTS Interpreter Development.Module)
+# Locate nanobind using the consumer's Python environment as in the example.
+find_package(nanobind 3.1 CONFIG REQUIRED)
+nanobind_add_module(my_extension NB_STATIC NB_DOMAIN my_extension bindings.cpp)
+meshvale_geometry_add_python_record(my_records DOMAIN my_extension)
+target_link_libraries(my_extension PRIVATE my_records)
+```
+
+The factory creates a static PIC library from the installed source, links the
+compiled Geometry target and that build's `nanobind-static`, and applies C++20,
+warnings as errors and matching `NB_DOMAIN`. Each extension builds its own
+adapter. This is an implementation-source factory, not a precompiled Python ABI
+export. Use the same interpreter, compiler, runtime mode and domain for both
+targets. Ordinary `NB_STATIC` builds are the supported arrangement; shared,
+split, stable-ABI and free-threaded variants require separate evidence. Legacy
+`.hpp` includes have been removed; use `python/record.h` and link the record
+implementation target rather than relying on header-only definitions.
+
 ## Portable development candidates
 
 The manually dispatched [candidate workflow](../.github/workflows/portable-candidates.yml)
