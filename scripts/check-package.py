@@ -23,10 +23,11 @@ def inspect(path):
             if parts[0] == "meshvale_reports":
                 assert len(parts) == 2 and parts[1] in {"__init__.py", "report-v1.schema.json"}, name
             if parts[0] == "meshvale_geometry":
-                assert len(parts) == 2 and (parts[1] in {"__init__.py","_version.py"} or
+                assert len(parts) == 2 and (parts[1] in {"__init__.py","_version.py","triangulation.py"} or
                        (parts[1].startswith("_geometry.") and parts[1].endswith((".pyd",".so")))), name
         assert any(name.endswith("/METADATA") for name in names)
         assert any(name.endswith("/_version.py") for name in names)
+        assert "meshvale_geometry/triangulation.py" in names
         assert "meshvale_reports/report-v1.schema.json" in names
         for license in ["LICENSE","NOTICE","nanobind.txt","robin-map.txt"]:
             assert any(name.endswith("/"+license) and ".dist-info/licenses/" in name for name in names), license
@@ -50,6 +51,11 @@ def inspect(path):
         assert ".clang-format" in names
         assert "scripts/check-cpp-format.py" in names
         assert "python/bindings.cpp" in names
+        for name in ["python/snapshot.h", "python/snapshot.cpp",
+                     "python/triangulation_bindings.h", "python/triangulation_bindings.cpp",
+                     "python/meshvale_geometry/triangulation.py", "tests/python/test_triangulation.py",
+                     "examples/python/triangulate_mesh.py"]:
+            assert name in names, name
         for header in ["attributes", "mesh", "topology", "python/record"]:
             assert "include/meshvale/geometry/" + header + ".h" in names
         assert not any(name.endswith(".hpp") for name in names)

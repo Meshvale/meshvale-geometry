@@ -8,7 +8,7 @@ ending in `.hpp` have been removed. Python record consumers explicitly compile
 the installed adapter source for their own extension domain; native builds do
 not require Python.
 
-**Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, exact native polygon triangulation, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Triangulation bindings, further operations, format adapters, stable interfaces and released packages are forthcoming.
+**Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, exact native/Python polygon triangulation, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Further operations, format adapters, stable interfaces and released packages are forthcoming.
 
 See [the storage contract and native build instructions](docs/attributes.md), [topology inspection contract](docs/topology.md), [Python buffer records and installation](docs/python.md), [report envelopes and reference validation](docs/reports.md), [installed native consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
 
@@ -24,8 +24,9 @@ are forthcoming.
 
 The [native triangulation contract](docs/triangulation.md) describes explicit
 conversion of simple exactly planar polygon faces, authored face/corner maps,
-channel backing and shared execution. Approximate-planarity profiles and Python
-conversion bindings are forthcoming.
+channel backing and shared execution. The [Python conversion example](examples/python/triangulate_mesh.py)
+uses immutable snapshots, owned correspondence and a reusable execution context.
+Approximate-planarity profiles are forthcoming.
 
 ## Planned capabilities
 
