@@ -10,7 +10,7 @@ Canonical public headers use `.h`, including `topology.h` and the optional Pytho
 
 Indices are current storage positions, not persistent source identities. Mutating a vector can invalidate references and indices. No borrowed-view lifetime or compaction guarantee is provided by this initial API. Copying a mesh owns independent copies of its arrays.
 
-`Mesh` is a raw data record, not an incremental editor. Inserting or erasing position/corner/face rows directly can invalidate connectivity and misassociate attributes, even when counts and index ranges still pass storage checks. Structural edits must rebuild every affected loop and domain channel, including dense/ragged values and presence masks, with correspondence. Copy-producing operations can construct and verify a complete candidate before accepting it. A general transactional editor with durable element handles is future work; no safe arbitrary in-place insertion/deletion interface is currently provided.
+`Mesh` is a raw data record, not an incremental editor. Inserting or erasing position/corner/face rows directly can invalidate connectivity and misassociate attributes, even when counts and index ranges still pass storage checks. Structural edits must rebuild every affected loop and domain channel, including dense/ragged values and presence masks, with correspondence. Copy-producing operations can construct and verify a complete candidate before accepting it. The [pooled editing contract](editing.md) describes the selected object/transaction direction for a future editor; no safe arbitrary in-place insertion/deletion interface is currently provided.
 
 ## Extensible channels
 

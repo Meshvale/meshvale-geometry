@@ -19,6 +19,10 @@ Supported formats, operation guarantees, and platform compatibility will be docu
 
 ## Development
 
+The [pooled editing contract](docs/editing.md) describes planned typed mesh
+objects, transactional edits and dense snapshot correspondence. It is a draft
+interface direction, not an installed runtime editor.
+
 Read [ENVIRONMENT.md](ENVIRONMENT.md) for portable configuration and repository checks, and [the storage documentation](docs/attributes.md#build-and-installed-consumer) for native build/test/install instructions. [AGENTS.md](AGENTS.md) provides focused instructions for work in this repository.
 
 ## Contributing
