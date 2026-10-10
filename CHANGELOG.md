@@ -4,7 +4,10 @@
 
 ### Changed
 
-- Canonical C++ headers use `.h`; existing `.hpp` includes remain installed forwarding headers with the same definitions and API names.
+- Remove legacy `.hpp` forwarding paths; canonical `.h` headers declare storage
+  and topology operations implemented in compiled static CMake targets.
+- Provide an opt-in installed Python record implementation-source factory for
+  each extension's nanobind domain, retaining owned buffer exchange.
 - Project C++ is formatted with the Google configuration and a pinned formatter check in CI; public naming compatibility is retained separately.
 
 ### Added

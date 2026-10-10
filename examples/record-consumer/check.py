@@ -11,6 +11,12 @@ else:
     from meshvale_geometry import Mesh
     import meshvale_record_consumer as consumer
 
+indices = consumer.write_indices()
+gc.collect()
+assert indices.readonly and list(indices) == [0, 2**53 + 1, 2**64 - 1]
+empty_indices = consumer.empty_indices()
+assert empty_indices.readonly and len(empty_indices) == 0
+
 source = {"schema":"meshvale.mesh/1", "positions":array("d",[0,0,0, 1,0,0, 1,1,0, 0,1,0]),
           "face_offsets":array("Q",[0,4]), "corner_vertices":array("Q",[0,1,2,3]), "attributes":[]}
 for kind,code in [("float32","f"),("float64","d"),("int32","i"),("uint8","B"),

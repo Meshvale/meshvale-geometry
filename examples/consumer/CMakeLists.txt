@@ -12,7 +12,7 @@ message(STATUS "Installed declarative report schema found without Python")
 add_executable(meshvale_consumer main.cpp)
 target_link_libraries(meshvale_consumer PRIVATE meshvale::geometry)
 foreach(consumer_header IN ITEMS attributes mesh topology)
-  foreach(consumer_extension IN ITEMS h hpp)
+  foreach(consumer_extension IN ITEMS h)
     set(consumer_probe "${CMAKE_CURRENT_BINARY_DIR}/${consumer_header}_${consumer_extension}.cpp")
     file(WRITE "${consumer_probe}"
       "#include <meshvale/geometry/${consumer_header}.${consumer_extension}>\n#include <meshvale/geometry/${consumer_header}.${consumer_extension}>\n")

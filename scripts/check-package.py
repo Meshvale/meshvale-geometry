@@ -51,8 +51,11 @@ def inspect(path):
         assert "scripts/check-cpp-format.py" in names
         assert "python/bindings.cpp" in names
         for header in ["attributes", "mesh", "topology", "python/record"]:
-            for extension in ["h", "hpp"]:
-                assert "include/meshvale/geometry/" + header + "." + extension in names
+            assert "include/meshvale/geometry/" + header + ".h" in names
+        assert not any(name.endswith(".hpp") for name in names)
+        for name in ["src/attributes.cpp", "src/mesh.cpp", "src/topology.cpp",
+                     "src/python/record.cpp", "cmake/MeshvaleGeometryPythonRecord.cmake"]:
+            assert name in names, name
         assert "tests/python/test_mesh.py" in names
         assert "include/meshvale/geometry/editable_mesh.h" in names
         assert "src/editable_mesh.cpp" in names
