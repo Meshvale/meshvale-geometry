@@ -62,3 +62,43 @@ assert mesh.to_record()["positions"].readonly
 The buffer lifetime requirements follow [Python's buffer protocol](https://docs.python.org/3/c-api/buffer.html). Build configuration follows [nanobind packaging](https://nanobind.readthedocs.io/en/latest/packaging.html) and [scikit-build-core version metadata](https://scikit-build-core.readthedocs.io/en/stable/configuration/dynamic.html). Focused acceptance tests cover every scalar kind, multiple UV sets, ragged joint/weight rows, explicit missingness, strict incompatible buffers, malformed mesh inspection, source/export lifetime independence and installed package contents. Independently installed development combinations are also exercised by the product-owned [Interchange runner](https://github.com/Meshvale/meshvale-interchange/blob/d8459f802a425687108298b3167182a62dbfd8ce/scripts/test-installed.py) and [Repair runner](https://github.com/Meshvale/meshvale-repair/blob/f01bb4ae2ab7b9802a1e9f39445140c930087d1a/scripts/test-installed.py), including import-order checks. These pinned combinations do not establish compatibility with arbitrary versions or a supported release matrix.
 
 The [independent record consumer](../examples/record-consumer/CMakeLists.txt) compiles against installed native headers, in a separate nanobind domain, without importing or registering Geometry's Python `Mesh` type. Its [installed check](../examples/record-consumer/check.py) exercises round-trip buffers, native inspection, source destruction and both import orders in separate processes. It is a development consumer of the `0.0.0` native snapshot package, not a released application or proof of the complete processing workflow. The [fresh-environment runner](../scripts/test-installed.py) installs both candidate wheels outside the checkout; [archive checks](../scripts/check-package.py) inspect Geometry package contents. CI evaluates CPython 3.10/3.14 on hosted Windows/Linux/macOS; this is a test matrix, not a broad release support promise.
+
+## Portable development candidates
+
+The manually dispatched [candidate workflow](../.github/workflows/portable-candidates.yml)
+selects ordinary GIL-enabled CPython 3.13 only: Linux x86_64 with a
+`manylinux_2_28_x86_64` (glibc 2.28) baseline, and Windows x64. This is a
+packaging pilot, not a released support matrix. macOS, other architectures and
+Python ABIs require separate final-artifact evidence.
+
+The workflow pins cibuildwheel 4.2.0, its dependency set, and an immutable
+manylinux image. It builds from full source history, inspects the source archive,
+then independently rebuilds that archive outside Git. Linux uses auditwheel;
+Windows uses delvewheel with the Microsoft C++ runtime kept external. Windows
+consumers need ordinary x64 CPython 3.13 and the official
+[x64 Visual C++ v14 Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist/),
+at least as recent as the compiler recorded in the build log. CPython supplies
+its own Python/VCRuntime DLLs; Windows supplies UCRT and system DLLs. The
+`windows-2022` hosted image is mutable, so its image identity is recorded for each
+run. A clean Windows 11 consumer check remains necessary before declaring that
+runtime baseline supported.
+
+Both repaired builds run the existing snapshot tests, the independent installed
+record consumer in both import orders, report validation and `pip check` in
+isolated test environments outside source. Successful jobs retain wheel/source
+archives, their required license notices, dependency inspection and a SHA256
+manifest as **development CI artifacts** for 14 days. Download an artifact from
+the workflow run, check `manifest.json`, and use its `wheels` directory in a fresh
+CPython 3.13 environment on the matching platform:
+
+```sh
+python -m pip install --no-index --find-links wheels meshvale-geometry
+python -I -c "from meshvale_geometry import Mesh; print(Mesh().vertex_count)"
+```
+
+The standalone snapshot import needs no additional Python dependency. The
+optional report validator still requires `jsonschema==4.26.0`. A successful job
+proves the exact candidate tested there; it does not establish compatibility
+with arbitrary downstream development versions. No tag, release or package-index
+upload is performed. Existing `linux_x86_64` or `macosx_26_0_arm64` host wheels
+must be rebuilt for a lower baseline rather than renamed.
