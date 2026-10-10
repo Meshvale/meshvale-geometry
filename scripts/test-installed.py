@@ -21,6 +21,8 @@ if __name__ == "__main__":
     parser.add_argument("--report-dependencies",type=Path,help="offline directory of report dependency wheels")
     options = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    run(sys.executable,root/"examples/record-consumer/check-package.py",
+        options.consumer_wheel.resolve(),cwd=root)
     with tempfile.TemporaryDirectory(prefix="meshvale-installed-") as scratch:
         directory = Path(scratch)
         environment = directory/"env"
