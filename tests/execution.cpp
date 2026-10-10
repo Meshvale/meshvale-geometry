@@ -4,34 +4,13 @@
 
 #include <atomic>
 #include <barrier>
-#include <cstdlib>
 #include <iostream>
 #include <limits>
-#include <new>
 #include <stdexcept>
 #include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-// Inject real allocation failure around admission/cleanup and the client block.
-// Thread runtime/exception objects are deliberately outside these guarded
-// paths.
-thread_local bool reject_allocations = false;
-void* operator new(std::size_t size) {
-  if (reject_allocations) throw std::bad_alloc();
-  if (auto* pointer = std::malloc(size ? size : 1)) return pointer;
-  throw std::bad_alloc();
-}
-void* operator new[](std::size_t size) { return ::operator new(size); }
-void operator delete(void* pointer) noexcept { std::free(pointer); }
-void operator delete[](void* pointer) noexcept { std::free(pointer); }
-void operator delete(void* pointer, std::size_t) noexcept {
-  std::free(pointer);
-}
-void operator delete[](void* pointer, std::size_t) noexcept {
-  std::free(pointer);
-}
 
 namespace {
 using namespace meshvale::geometry;
@@ -125,7 +104,7 @@ void PayloadCases() {
   Require(destination.TrackedPayloadBudget() == 8,
           "context move changed budget");
 }
-void LifetimeAndAllocationCases() {
+void LifetimeCases() {
   PayloadLease first, second;
   WorkerLease workers;
   {
@@ -140,98 +119,9 @@ void LifetimeAndAllocationCases() {
   Require(first.TryResize(64) == ReservationStatus::kAccepted &&
               workers.Count() == 3,
           "lease did not retain owner");
-  reject_allocations = true;
   first.Reset();
   workers.Reset();
   second.Reset();
-  reject_allocations = false;
-}
-// The context must be constructed outside the no-allocation window.
-void NoAllocationCases() {
-  ExecutionContext context({4, 1, 64});
-  auto copied = context;
-  ExecutionContext separate({4, 1, 64});
-  auto relocated_context = std::move(separate);
-  reject_allocations = true;
-  {
-    Require(SharesExecutionBudget(context, copied) &&
-                !SharesExecutionBudget(context, relocated_context) &&
-                !SharesExecutionBudget(context, separate) &&
-                !SharesExecutionBudget(separate, separate) &&
-                !SharesExecutionBudget(separate, relocated_context),
-            "nonallocating shared ledger identity");
-    auto initial = TryReservePayload(context, 32);
-    auto payload = std::move(initial.lease);
-    auto other = TryReservePayload(context, 16);
-    other.lease = std::move(payload);
-    Require(other.lease.TryResize(64) == ReservationStatus::kAccepted,
-            "no-allocation growth");
-    Require(TryReservePayload(context, 1).status ==
-                ReservationStatus::kBudgetExceeded,
-            "no-allocation rejection");
-    auto workers = TryReserveWorkers(context, 2);
-    auto more = TryReserveWorkers(context, 2);
-    workers = std::move(more);
-    WorkerLease moved(std::move(workers));
-    moved.Reset();
-    other.lease.Reset();
-    PayloadLease detached;
-    detached.Reset();
-    WorkerLease empty;
-    empty.Reset();
-  }
-  reject_allocations = false;
-  Require(context.ActiveTrackedPayload() == 0 && context.ActiveWorkers() == 0,
-          "allocation-free cleanup leaked");
-}
-struct Header {
-  PayloadLease lease;
-};
-Header* Allocate(const ExecutionContext& context, std::size_t payload) {
-  if (payload > std::numeric_limits<std::size_t>::max() - sizeof(Header))
-    throw std::length_error("client block size overflow");
-  const auto total = sizeof(Header) + payload;
-  auto reservation = TryReservePayload(context, total);
-  if (reservation.status != ReservationStatus::kAccepted) return nullptr;
-  // Actual allocation failure unwinds the still-owned reservation.
-  auto* storage = ::operator new(total);
-  return new (storage) Header{std::move(reservation.lease)};
-}
-void Free(Header* header) {
-  auto reservation = std::move(header->lease);
-  header->~Header();
-  ::operator delete(header);
-  // Destroy the local lease after the underlying storage has been freed.
-}
-void AllocationRollbackCases() {
-  const auto total = 2 * sizeof(Header) + 60;
-  ExecutionContext context({2, 1, total});
-  auto* old = Allocate(context, 20);
-  Require(old != nullptr, "old block allocation");
-  const auto old_bytes = old->lease.Bytes();
-  reject_allocations = true;
-  try {
-    (void)Allocate(context, 40);
-    reject_allocations = false;
-    throw std::runtime_error("injected new failure did not propagate");
-  } catch (const std::bad_alloc&) {
-    reject_allocations = false;
-  }
-  Require(context.ActiveTrackedPayload() == old_bytes,
-          "actual allocation failure leaked charge");
-  auto* replacement = Allocate(context, 40);
-  Require(replacement && context.ActiveTrackedPayload() == total,
-          "growth overlap not charged");
-  Require(Allocate(context, 1) == nullptr, "full-cap admission allocated");
-  Free(old);
-  Require(context.ActiveTrackedPayload() == replacement->lease.Bytes(),
-          "old block release");
-  reject_allocations = true;
-  Free(replacement);
-  reject_allocations = false;
-  Require(context.ActiveTrackedPayload() == 0 &&
-              context.PeakTrackedPayload() == total,
-          "block cleanup or peak");
 }
 Mesh Quads(std::size_t faces) {
   Mesh mesh;
@@ -359,14 +249,11 @@ void ConcurrentCases() {
 int main() {
   try {
     PayloadCases();
-    LifetimeAndAllocationCases();
-    NoAllocationCases();
-    AllocationRollbackCases();
+    LifetimeCases();
     WorkerAndAlgorithmCases();
     ConcurrentCases();
     std::cout << "Shared execution lease cases passed\n";
   } catch (const std::exception& error) {
-    reject_allocations = false;
     std::cerr << error.what() << '\n';
     return 1;
   }

@@ -74,7 +74,9 @@ def inspect(path):
                      "examples/triangulation-consumer/main.cpp"]:
             assert name in names, name
         for name in ["include/meshvale/geometry/execution.h", "src/execution.cpp",
-                     "tests/execution.cpp", "docs/execution.md",
+                     "tests/execution.cpp", "tests/execution_allocation.cpp",
+                     "tests/allocation_failure.h", "tests/allocation_failure.cpp",
+                     "scripts/check-native-tests.py", "docs/execution.md",
                      "examples/execution-consumer/CMakeLists.txt",
                      "examples/execution-consumer/main.cpp"]:
             assert name in names, name

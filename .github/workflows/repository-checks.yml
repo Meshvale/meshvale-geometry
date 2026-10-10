@@ -48,6 +48,8 @@ jobs:
       - name: Build and inspect storage
         run: cmake --build .local/build --config Release
       - name: Test
+        run: python scripts/check-native-tests.py --build-dir .local/build
+      - name: Run native tests
         run: ctest --test-dir .local/build -C Release --output-on-failure
       - name: Install
         run: cmake --install .local/build --config Release --prefix .local/install
@@ -92,6 +94,8 @@ jobs:
       - name: Build instrumented native tests
         run: cmake --build .local/sanitizers --parallel 2
       - name: Run instrumented native tests
+        run: python scripts/check-native-tests.py --build-dir .local/sanitizers --configuration Debug
+      - name: Execute instrumented native tests
         run: ctest --test-dir .local/sanitizers --output-on-failure
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -108,11 +112,16 @@ jobs:
         run: >-
           cmake -S . -B .local/thread-sanitizer -DCMAKE_BUILD_TYPE=Debug
           -DCMAKE_CXX_COMPILER=clang++
+          -DMESHVALE_GEOMETRY_ALLOCATION_PROBE=OFF
           "-DCMAKE_CXX_FLAGS=-fsanitize=thread -O1 -g -fno-omit-frame-pointer"
           "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread"
       - name: Build instrumented native tests
         run: cmake --build .local/thread-sanitizer --parallel 2
       - name: Run instrumented native tests
+        run: >-
+          python scripts/check-native-tests.py --build-dir .local/thread-sanitizer
+          --configuration Debug --allocation-probe disabled
+      - name: Execute instrumented native tests
         run: ctest --test-dir .local/thread-sanitizer --output-on-failure
         env:
           TSAN_OPTIONS: halt_on_error=1

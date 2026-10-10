@@ -112,6 +112,8 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+  option(MESHVALE_GEOMETRY_ALLOCATION_PROBE
+    "Build ordinary replacement-new allocation failure tests (disable for TSan)" ON)
   add_library(meshvale_geometry_header_checks OBJECT)
   target_link_libraries(meshvale_geometry_header_checks PRIVATE meshvale::geometry)
   foreach(meshvale_header IN ITEMS attributes mesh topology execution)
@@ -136,6 +138,26 @@ if(BUILD_TESTING)
   target_link_libraries(meshvale_editing_tests PRIVATE meshvale::editing)
   add_executable(meshvale_execution_tests tests/execution.cpp)
   target_link_libraries(meshvale_execution_tests PRIVATE meshvale::triangulation)
+  if(MESHVALE_GEOMETRY_ALLOCATION_PROBE)
+    add_executable(meshvale_execution_allocation_tests
+      tests/execution_allocation.cpp tests/allocation_failure.cpp)
+    target_link_libraries(meshvale_execution_allocation_tests PRIVATE meshvale::editing)
+    # Preserve the replacement allocation compilation boundary under CMake IPO.
+    set_target_properties(meshvale_execution_allocation_tests PROPERTIES
+      INTERPROCEDURAL_OPTIMIZATION FALSE)
+    foreach(meshvale_test_config IN ITEMS Debug Release RelWithDebInfo MinSizeRel
+        ${CMAKE_CONFIGURATION_TYPES} ${CMAKE_BUILD_TYPE})
+      string(TOUPPER "${meshvale_test_config}" meshvale_test_config_upper)
+      set_property(TARGET meshvale_execution_allocation_tests PROPERTY
+        "INTERPROCEDURAL_OPTIMIZATION_${meshvale_test_config_upper}" FALSE)
+    endforeach()
+    if(MSVC)
+      target_compile_options(meshvale_execution_allocation_tests PRIVATE /W4 /WX)
+    else()
+      target_compile_options(meshvale_execution_allocation_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME execution_allocation_failure COMMAND meshvale_execution_allocation_tests)
+  endif()
   add_executable(meshvale_triangulation_tests tests/triangulation.cpp)
   target_include_directories(meshvale_triangulation_tests PRIVATE src)
   target_link_libraries(meshvale_triangulation_tests PRIVATE meshvale::triangulation)
