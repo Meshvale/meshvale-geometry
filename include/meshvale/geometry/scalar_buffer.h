@@ -73,8 +73,8 @@ class ScalarBuffer {
   void push_back(const T& value);
   // Position must be this buffer's begin/end or an intervening iterator. Source
   // ranges obey the constructor precondition and may overlap this owner's data.
-  // Insert constructs a replacement before publication, even with spare
-  // capacity.
+  // Insert uses geometric growth. With spare capacity, overlapping input is
+  // staged before mutation; a nonoverlapping range needs no allocation.
   iterator insert(const_iterator position, const T* first, const T* last);
 
   // Native-format byte transfer, not serialization. Assign requires complete T

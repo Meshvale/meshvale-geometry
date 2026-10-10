@@ -50,8 +50,11 @@ move or destruction; separate immutable owners support concurrent reads.
 Reserve and growing resize/append, insert and assignment can invalidate views.
 Copy assignment and allocating operations preserve the old value on allocation
 or length failure. Count construction and newly exposed resize slots initialize
-to `T{}`. Clear retains capacity; empty byte assignment releases it. Insert
-constructs a replacement before publication and accepts self-overlapping ranges.
+to `T{}`. Clear retains capacity; empty byte assignment releases it. Insert uses
+geometric growth and accepts self-overlapping ranges. With spare capacity it
+stages overlapping input before mutation; nonoverlapping input needs no
+allocation. Repeated row appends can reuse reserved storage. This is an
+allocation/copy policy, not a measured throughput claim.
 Pointer-range input must be ordered within one live scalar array; insert positions
 must belong to the destination's logical range, including its end.
 

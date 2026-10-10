@@ -21,6 +21,8 @@ template <class Operation>
 void RejectStorageAllocation(ScalarBuffer<double>& source,
                              Operation operation) {
   const auto before = source;
+  const auto* before_data = source.data();
+  const auto before_capacity = source.capacity();
   allocation_test::allocations_before_failure = 0;
   bool refused = false;
   try {
@@ -33,6 +35,8 @@ void RejectStorageAllocation(ScalarBuffer<double>& source,
   }
   allocation_test::allocations_before_failure.reset();
   Require(refused && source.size() == before.size() &&
+              source.data() == before_data &&
+              source.capacity() == before_capacity &&
               std::memcmp(source.data(), before.data(),
                           source.size() * sizeof(double)) == 0,
           "scalar owner ordinary-allocation rollback");
@@ -49,7 +53,14 @@ void StorageRollback() {
   });
   RejectStorageAllocation(
       source, [&] { source.AssignBytes(std::as_bytes(source.Values())); });
+  source.reserve(64);
+  RejectStorageAllocation(source, [&] {
+    source.insert(source.begin() + 1, source.begin(), source.end());
+  });
   allocation_test::reject_allocations = true;
+  const double row[]{8, 9};
+  for (std::size_t i = 0; i < 16; ++i)
+    source.insert(source.end(), row, row + 2);
   ScalarBuffer<double> empty;
   auto* alias = &source;
   source = *alias;
@@ -57,11 +68,12 @@ void StorageRollback() {
   auto moved = std::move(source);
   empty = std::move(moved);
   allocation_test::reject_allocations = false;
-  Require(source.empty() && moved.empty() && empty.size() == 3,
+  Require(source.empty() && moved.empty() && empty.size() == 35 &&
+              empty[3] == row[0] && empty.back() == row[1],
           "default/move/self-assignment allocated");
-  std::cout
-      << "Scalar owner PIMPL allocation rollback and allocation-free moves "
-         "passed; Eigen malloc/aligned paths are outside this probe\n";
+  std::cout << "Scalar owner PIMPL/staging rollback, reserved row appends and "
+               "allocation-free moves "
+               "passed; Eigen malloc/aligned paths are outside this probe\n";
 }
 void FailEveryAllocation(bool parallel) {
   Attribute source;

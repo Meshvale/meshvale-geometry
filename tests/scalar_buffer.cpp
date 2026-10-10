@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <span>
@@ -137,6 +138,46 @@ void Storage() {
   ScalarBuffer<T> range(inserted.begin() + 2, inserted.begin() + 6);
   Require(range == ScalarBuffer<T>{T{0}, T{1}, T{2}, T{3}},
           "pointer-range copy");
+  inserted.reserve(32);
+  const auto* reserved_data = inserted.data();
+  inserted.insert(inserted.begin() + 1, inserted.begin() + 2,
+                  inserted.begin() + 6);
+  Require(inserted.data() == reserved_data &&
+              inserted == ScalarBuffer<T>{T{0}, T{0}, T{1}, T{2}, T{3}, T{1},
+                                          T{0}, T{1}, T{2}, T{3}, T{2}, T{3}},
+          "reserved self-overlapping insertion");
+  ScalarBuffer<T> overlap_bits(input);
+  overlap_bits.reserve(32);
+  const auto* overlap_data = overlap_bits.data();
+  overlap_bits.insert(overlap_bits.begin() + 1, overlap_bits.begin(),
+                      overlap_bits.end());
+  Require(
+      overlap_bits.data() == overlap_data &&
+          std::memcmp(overlap_bits.data(), input.data(), sizeof(T)) == 0 &&
+          std::memcmp(overlap_bits.data() + 1, input.data(),
+                      input.size() * sizeof(T)) == 0 &&
+          std::memcmp(overlap_bits.data() + 1 + input.size(), input.data() + 1,
+                      (input.size() - 1) * sizeof(T)) == 0,
+      "reserved overlap changed scalar bits");
+  ScalarBuffer<T> repeated;
+  const std::array<T, 2> row{T{2}, T{3}};
+  std::size_t growths = 0;
+  for (std::size_t i = 0; i < 64; ++i) {
+    const auto old_capacity = repeated.capacity();
+    repeated.insert(repeated.end(), row.data(), row.data() + row.size());
+    if (repeated.capacity() != old_capacity) ++growths;
+    Require(repeated.size() == (i + 1) * row.size() &&
+                repeated[repeated.size() - 2] == row[0] &&
+                repeated.back() == row[1],
+            "repeated row append changed values");
+  }
+  Require(growths <= 7, "row insertion did not grow geometrically");
+  repeated.reserve(256);
+  const auto* repeated_data = repeated.data();
+  for (std::size_t i = 0; i < 32; ++i)
+    repeated.insert(repeated.end(), row.data(), row.data() + row.size());
+  Require(repeated.data() == repeated_data && repeated.capacity() == 256,
+          "reserved row append replaced storage");
   ScalarBuffer<T> zeros(3);
   Require(zeros == ScalarBuffer<T>{T{}, T{}, T{}}, "count ingress not zeroed");
 }

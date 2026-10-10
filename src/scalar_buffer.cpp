@@ -218,15 +218,36 @@ typename ScalarBuffer<T>::iterator ScalarBuffer<T>::insert(
     throw std::length_error("scalar buffer exceeds host extent");
   if (count == 0) return empty() ? data() : data() + offset;
   const auto required = size() + count;
-  auto replacement = std::make_unique<Impl>(std::max(capacity(), required));
-  auto* output = replacement->values.data();
-  if (offset != 0) std::memcpy(output, data(), offset * sizeof(T));
-  std::memcpy(output + offset, first, count * sizeof(T));
-  if (offset != size())
-    std::memcpy(output + offset + count, data() + offset,
-                (size() - offset) * sizeof(T));
-  replacement->size = required;
-  impl_.swap(replacement);
+  if (required > capacity()) {
+    // Geometric growth lets repeated row appends reuse storage. The old owner
+    // stays alive until all bytes, including overlapping source, are copied.
+    auto replacement = std::make_unique<Impl>(Growth<T>(capacity(), required));
+    auto* output = replacement->values.data();
+    if (offset != 0) std::memcpy(output, data(), offset * sizeof(T));
+    std::memcpy(output + offset, first, count * sizeof(T));
+    if (offset != size())
+      std::memcpy(output + offset + count, data() + offset,
+                  (size() - offset) * sizeof(T));
+    replacement->size = required;
+    impl_.swap(replacement);
+  } else {
+    // Stage overlap before mutation so allocation failure retains the value,
+    // capacity and pointers. The subsequent byte transfers cannot throw.
+    ScalarBuffer staged;
+    const auto source_begin = reinterpret_cast<std::uintptr_t>(first);
+    const auto source_end = reinterpret_cast<std::uintptr_t>(last);
+    const auto allocation_end =
+        reinterpret_cast<std::uintptr_t>(data() + capacity());
+    if (source_begin < allocation_end && source_end > base) {
+      staged = ScalarBuffer(first, last);
+      first = staged.data();
+    }
+    if (offset != size())
+      std::memmove(data() + offset + count, data() + offset,
+                   (size() - offset) * sizeof(T));
+    std::memcpy(data() + offset, first, count * sizeof(T));
+    impl_->size = required;
+  }
   return data() + offset;
 }
 template <SupportedAttributeScalar T>
