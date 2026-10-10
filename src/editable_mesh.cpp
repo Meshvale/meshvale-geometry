@@ -10,6 +10,8 @@
 #include <thread>
 #include <type_traits>
 
+#include "execution_internal.h"
+
 namespace meshvale::geometry {
 namespace editing_detail {
 constexpr std::size_t kPageSize = 64;
@@ -162,11 +164,6 @@ struct Session {
   std::thread::id thread = std::this_thread::get_id();
   bool closed = false;
   std::vector<ElementIdentity> created, erased;
-};
-struct Execution {
-  ExecutionOptions options;
-  mutable std::mutex mutex;
-  std::size_t active = 0, peak = 0;
 };
 struct Access {
   static ElementIdentity MakeIdentity(std::uint64_t owner, Id id,
@@ -1244,6 +1241,19 @@ std::size_t ExecutionContext::PeakWorkers() const {
   std::lock_guard lock(execution->mutex);
   return execution->peak;
 }
+std::size_t ExecutionContext::TrackedPayloadBudget() const {
+  return Access::GetExecution(*this)->options.tracked_payload_budget_bytes;
+}
+std::size_t ExecutionContext::ActiveTrackedPayload() const {
+  const auto& execution = Access::GetExecution(*this);
+  std::lock_guard lock(execution->mutex);
+  return execution->active_payload;
+}
+std::size_t ExecutionContext::PeakTrackedPayload() const {
+  const auto& execution = Access::GetExecution(*this);
+  std::lock_guard lock(execution->mutex);
+  return execution->peak_payload;
+}
 BoundsResult ComputeBounds(const EditorSnapshot& snapshot,
                            const ExecutionContext& context,
                            std::stop_token stop) {
@@ -1258,27 +1268,16 @@ BoundsResult ComputeBounds(const EditorSnapshot& snapshot,
     result.serial_reason = "empty mesh";
     return result;
   }
-  std::size_t workers = 0;
+  std::size_t desired = 0;
   if (count >= execution->options.minimum_parallel_vertices &&
       execution->options.worker_budget > 1) {
-    std::lock_guard lock(execution->mutex);
     const auto grain = std::max<std::size_t>(
         1, execution->options.minimum_parallel_vertices / 2);
-    workers = std::min({execution->options.worker_budget - execution->active,
-                        static_cast<std::size_t>(count) / grain,
-                        state.vertices.pages.size()});
-    if (workers < 2) workers = 0;
-    execution->active += workers;
-    execution->peak = std::max(execution->peak, execution->active);
+    desired = std::min(static_cast<std::size_t>(count) / grain,
+                       state.vertices.pages.size());
   }
-  struct Reservation {
-    std::shared_ptr<editing_detail::Execution> execution;
-    std::size_t count;
-    ~Reservation() {
-      std::lock_guard lock(execution->mutex);
-      execution->active -= count;
-    }
-  } reservation{execution, workers};
+  execution_detail::WorkerReservation reservation(execution, desired);
+  const auto workers = reservation.Count();
   if (workers == 0) {
     result.serial_reason =
         execution->options.worker_budget <= 1 ? "worker budget is one"
