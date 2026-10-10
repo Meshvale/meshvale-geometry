@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-EDIT-001 |
-| Version | 0.2.0 |
+| Version | 0.2.1 |
 | Status | Native development interface; no stable API/ABI or release |
 | Owner | Geometry |
 | Related | [Raw storage](attributes.md), [incidence inspection](topology.md) |
@@ -225,7 +225,10 @@ worker state. `ExecutionOptions` also has a trailing declared active-payload
 budget; existing two-field source initializers retain their defaults. Bounds
 reserve worker slots and no triangulation payload. Context copies share
 `TrackedPayloadBudget()`, `ActiveTrackedPayload()` and lifetime
-`PeakTrackedPayload()`; see triangulation's explicit accounting exclusions.
+`PeakTrackedPayload()`; [shared execution leases](execution.md) own the expanded
+accounting meaning: declared active computation reservations plus explicitly
+leased requested allocations. Persistent leases share both payload and worker
+caps with these algorithms; triangulation retains its explicit exclusions.
 
 The implementation uses private 64-record copy-on-write pages. A local edit
 copies the affected pages and their record payloads; retained snapshots share

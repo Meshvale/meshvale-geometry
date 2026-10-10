@@ -63,6 +63,12 @@ jobs:
         run: cmake --build .local/editing-consumer --config Release
       - name: Test installed editing consumer
         run: ctest --test-dir .local/editing-consumer -C Release --output-on-failure
+      - name: Configure installed execution consumer
+        run: cmake -S examples/execution-consumer -B .local/execution-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+      - name: Build installed execution consumer
+        run: cmake --build .local/execution-consumer --config Release
+      - name: Test installed execution consumer
+        run: ctest --test-dir .local/execution-consumer -C Release --output-on-failure
       - name: Configure installed triangulation consumer
         run: cmake -S examples/triangulation-consumer -B .local/triangulation-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
       - name: Build installed triangulation consumer

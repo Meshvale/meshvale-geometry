@@ -67,6 +67,11 @@ def inspect(path):
                      "tests/triangulation_fixture_driver.cpp", "tests/triangulation_fixtures.py",
                      "examples/triangulation-consumer/main.cpp"]:
             assert name in names, name
+        for name in ["include/meshvale/geometry/execution.h", "src/execution.cpp",
+                     "tests/execution.cpp", "docs/execution.md",
+                     "examples/execution-consumer/CMakeLists.txt",
+                     "examples/execution-consumer/main.cpp"]:
+            assert name in names, name
         assert "python/meshvale_reports/report-v1.schema.json" in names
         assert "tests/reports/test_reports.py" in names
     print(f"Package content check passed: {path.name}; {len(names)} files")

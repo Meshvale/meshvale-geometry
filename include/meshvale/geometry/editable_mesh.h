@@ -317,11 +317,13 @@ struct ImportResult {
 struct ExecutionOptions {
   std::size_t worker_budget = 0;  // 0 selects hardware concurrency, at least 1.
   std::size_t minimum_parallel_vertices = 65536;
-  // Cap on declared payload reservations of active computations, not total RSS.
+  // Cap on active declared computation and explicit payload leases, not RSS.
   std::size_t tracked_payload_budget_bytes = 256 * 1024 * 1024;
 };
 // Copies share one cap on library-owned worker threads across overlapping or
-// nested calls. External caller threads are not created/accounted by this API.
+// nested calls and explicit WorkerLease reservations. External caller threads
+// are not created/accounted by this API. PayloadLease shares the payload
+// ledger; see the execution contract for its accounting and lifetime boundary.
 class ExecutionContext {
  public:
   explicit ExecutionContext(ExecutionOptions options = {});

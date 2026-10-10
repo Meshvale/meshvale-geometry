@@ -12,6 +12,11 @@
 
 ### Added
 
+- Move-only native payload and worker leases through `execution.h` and
+  `meshvale::editing`, sharing existing context caps with bounds/triangulation.
+  Explicit charges survive caller-context destruction; failed growth preserves
+  prior charges and cancellation never blocks shrink or cleanup.
+
 - Native exact represented-planar polygon triangulation through `triangulation.h` and `meshvale::triangulation`, with complete Mesh/face/corner correspondence, bit-preserving channel transfer, shared CPU worker/payload admission and cooperative cancellation. The single-loop profile supports up to 4096 corners per face; approximate planarity and Python conversion bindings are forthcoming.
 
 - A manually dispatched portable packaging pilot for ordinary CPython 3.13 on Linux x86_64 (glibc 2.28) and Windows x64, with repaired-wheel tests and independently rebuilt source archives retained as development CI artifacts.

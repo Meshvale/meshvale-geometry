@@ -2,13 +2,11 @@
 #ifndef MESHVALE_GEOMETRY_SRC_EXECUTION_INTERNAL_H_
 #define MESHVALE_GEOMETRY_SRC_EXECUTION_INTERNAL_H_
 
-#include <meshvale/geometry/editable_mesh.h>
+#include <meshvale/geometry/execution.h>
 
-#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <mutex>
-#include <utility>
 
 namespace meshvale::geometry::editing_detail {
 struct Execution {
@@ -21,67 +19,44 @@ struct Execution {
 
 namespace meshvale::geometry::execution_detail {
 struct Access {
+  static bool Shares(const ExecutionContext& first,
+                     const ExecutionContext& second) noexcept;
   static std::shared_ptr<editing_detail::Execution> Get(
-      const ExecutionContext& context) {
-    if (!context.execution_)
-      throw EditorError(EditorErrorCode::kInvalidObject,
-                        "Execution context is moved from");
-    return context.execution_;
-  }
+      const ExecutionContext& context);
+  static PayloadLease BindPayload(
+      std::shared_ptr<editing_detail::Execution> execution);
+  static PayloadLeaseResult ReservePayload(
+      std::shared_ptr<editing_detail::Execution> execution, std::size_t bytes,
+      std::stop_token stop);
+  static WorkerLease ReserveWorkers(
+      std::shared_ptr<editing_detail::Execution> execution,
+      std::size_t desired);
 };
-
+// Existing algorithms retain their admission interface and exception ordering.
 class WorkerReservation {
  public:
   WorkerReservation(std::shared_ptr<editing_detail::Execution> execution,
-                    std::size_t desired)
-      : execution_(std::move(execution)) {
-    std::lock_guard lock(execution_->mutex);
-    count_ = std::min(desired,
-                      execution_->options.worker_budget - execution_->active);
-    if (count_ < 2) count_ = 0;
-    execution_->active += count_;
-    execution_->peak = std::max(execution_->peak, execution_->active);
-  }
+                    std::size_t desired);
   WorkerReservation(const WorkerReservation&) = delete;
   WorkerReservation& operator=(const WorkerReservation&) = delete;
-  ~WorkerReservation() {
-    std::lock_guard lock(execution_->mutex);
-    execution_->active -= count_;
-  }
-  std::size_t Count() const { return count_; }
+  ~WorkerReservation();
+  std::size_t Count() const;
 
  private:
-  std::shared_ptr<editing_detail::Execution> execution_;
-  std::size_t count_ = 0;
+  WorkerLease lease_;
 };
-
 class PayloadReservation {
  public:
   explicit PayloadReservation(
-      std::shared_ptr<editing_detail::Execution> execution)
-      : execution_(std::move(execution)) {}
+      std::shared_ptr<editing_detail::Execution> execution);
   PayloadReservation(const PayloadReservation&) = delete;
   PayloadReservation& operator=(const PayloadReservation&) = delete;
-  ~PayloadReservation() {
-    std::lock_guard lock(execution_->mutex);
-    execution_->active_payload -= count_;
-  }
-  bool Add(std::size_t bytes) {
-    std::lock_guard lock(execution_->mutex);
-    if (bytes > execution_->options.tracked_payload_budget_bytes -
-                    execution_->active_payload)
-      return false;
-    count_ += bytes;
-    execution_->active_payload += bytes;
-    execution_->peak_payload =
-        std::max(execution_->peak_payload, execution_->active_payload);
-    return true;
-  }
-  std::size_t Count() const { return count_; }
+  ~PayloadReservation();
+  bool Add(std::size_t bytes);
+  std::size_t Count() const;
 
  private:
-  std::shared_ptr<editing_detail::Execution> execution_;
-  std::size_t count_ = 0;
+  PayloadLease lease_;
 };
 }  // namespace meshvale::geometry::execution_detail
 #endif  // MESHVALE_GEOMETRY_SRC_EXECUTION_INTERNAL_H_

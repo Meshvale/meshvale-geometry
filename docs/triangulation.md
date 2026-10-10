@@ -111,7 +111,10 @@ Assembly is charged while earlier work buffers still coexist.
 `peak_tracked_payload_bytes` is this call's cumulative conservative reservation,
 not allocated bytes or RSS. Context `TrackedPayloadBudget()`,
 `ActiveTrackedPayload()` and `PeakTrackedPayload()` expose shared reservations;
-the peak is a lifetime peak. Contention can reject admission; there is no payload
+the peak is a lifetime peak. [Execution leases](execution.md) share these counters
+and can retain requested allocation charges after their caller context is gone.
+This call's metric continues to describe its own conservative reservation.
+Contention can reject admission; there is no payload
 waiting or separate independent operation cap.
 
 Accounting excludes allocator bookkeeping, unused capacity, tree-node linkage/
