@@ -63,7 +63,11 @@ def inspect(path):
         for name in ["src/attributes.cpp", "src/mesh.cpp", "src/topology.cpp",
                      "src/position_buffer.cpp", "src/python/record.cpp",
                      "cmake/MeshvaleEigen.cmake", "cmake/MeshvaleGeometryPythonRecord.cmake",
-                     "docs/numerics.md", "licenses/eigen-mpl2.txt",
+                     "docs/numerics.md", "include/meshvale/geometry/attribute_numerics.h",
+                     "src/attribute_numerics.cpp", "tests/attribute_numerics.cpp",
+                     "tests/attribute_numerics_allocation.cpp",
+                     "examples/attribute-numerics-consumer/CMakeLists.txt",
+                     "examples/attribute-numerics-consumer/main.cpp", "licenses/eigen-mpl2.txt",
                      "licenses/eigen-apache.txt", "licenses/eigen-notices.txt"]:
             assert name in names, name
         assert "tests/python/test_mesh.py" in names
