@@ -8,6 +8,7 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -57,7 +58,8 @@ enum class EditorErrorCode {
   kRevisionConflict,
   kCanceled,
   kIdentityExhausted,
-  kUnsupportedProjection
+  kUnsupportedProjection,
+  kBatchActive
 };
 class EditorError : public std::runtime_error {
  public:
@@ -202,10 +204,71 @@ struct DenseEditorMesh {
   std::vector<DenseProperty> properties;
 };
 
-// All returned collections/rows are owned values. A snapshot remains usable
-// after edits, owner moves and destruction. Its objects resolve through the
-// snapshot's methods; ordinary object methods query only current accepted
-// state.
+// Immutable forward ranges pin their captured snapshot without allocating.
+// Dereference returns an identity handle, not a snapshot-bound object: use the
+// snapshot query methods for captured values. Ordinary handle methods still
+// query current accepted state. Iterators also retain the snapshot
+// independently of the range, snapshot object and editable owner.
+template <class Element>
+class SnapshotRange {
+ public:
+  class Iterator {
+   public:
+    using value_type = Element;
+    using difference_type = std::ptrdiff_t;
+    using iterator_category = std::forward_iterator_tag;
+    using iterator_concept = std::forward_iterator_tag;
+    using reference = Element;
+    Iterator() = default;
+    [[nodiscard]] Element operator*() const;
+    Iterator& operator++();
+    Iterator operator++(int);
+    [[nodiscard]] bool operator==(const Iterator& other) const noexcept;
+
+   private:
+    friend class SnapshotRange;
+    Iterator(std::shared_ptr<const editing_detail::Snapshot> snapshot,
+             std::optional<ElementIdentity> incidence, std::uint64_t position);
+    void SkipVacant();
+    std::shared_ptr<const editing_detail::Snapshot> snapshot_;
+    std::optional<ElementIdentity> incidence_;
+    std::uint64_t position_ = 0;
+  };
+  SnapshotRange() = default;
+  [[nodiscard]] Iterator begin() const;
+  [[nodiscard]] Iterator end() const;
+
+ private:
+  friend struct editing_detail::Access;
+  SnapshotRange(std::shared_ptr<const editing_detail::Snapshot> snapshot,
+                std::optional<ElementIdentity> incidence);
+  std::shared_ptr<const editing_detail::Snapshot> snapshot_;
+  std::optional<ElementIdentity> incidence_;
+};
+extern template class SnapshotRange<Vertex>;
+extern template class SnapshotRange<Edge>;
+extern template class SnapshotRange<Face>;
+extern template class SnapshotRange<Corner>;
+extern template class SnapshotRange<Property>;
+
+// Read-only row storage pinned by its snapshot. Values() returns a reference
+// valid while this view or another owner of its captured snapshot remains
+// alive.
+class PropertyRowView {
+ public:
+  [[nodiscard]] const AttributeValues& Values() const;
+  [[nodiscard]] bool IsPresent() const;
+
+ private:
+  friend struct editing_detail::Access;
+  std::shared_ptr<const editing_detail::Snapshot> snapshot_;
+  const PropertyRow* row_ = nullptr;
+};
+
+// Vector collections/rows are owned values; ranges/views retain snapshots. A
+// snapshot remains usable after edits, owner moves and destruction. Its objects
+// resolve through the snapshot's methods; ordinary object methods query only
+// current accepted state.
 class EditorSnapshot {
  public:
   // A default-constructed snapshot has no state; queries throw kInvalidObject.
@@ -218,6 +281,20 @@ class EditorSnapshot {
   [[nodiscard]] std::vector<Face> Faces() const;
   [[nodiscard]] std::vector<Corner> Corners() const;
   [[nodiscard]] std::vector<Property> Properties() const;
+  [[nodiscard]] SnapshotRange<Vertex> VertexElements() const;
+  [[nodiscard]] SnapshotRange<Edge> EdgeElements() const;
+  [[nodiscard]] SnapshotRange<Face> FaceElements() const;
+  [[nodiscard]] SnapshotRange<Corner> CornerElements() const;
+  [[nodiscard]] SnapshotRange<Property> PropertyElements() const;
+  [[nodiscard]] SnapshotRange<Edge> EdgeElements(Vertex vertex) const;
+  [[nodiscard]] SnapshotRange<Corner> CornerElements(Vertex vertex) const;
+  [[nodiscard]] SnapshotRange<Corner> CornerElements(Edge edge) const;
+  [[nodiscard]] SnapshotRange<Corner> CornerElements(Face face) const;
+  [[nodiscard]] Vertex GetVertex(Corner corner) const;
+  [[nodiscard]] Edge GetEdge(Corner corner) const;
+  [[nodiscard]] Face GetFace(Corner corner) const;
+  [[nodiscard]] PropertyRowView ViewRow(Property property,
+                                        ElementIdentity element) const;
   [[nodiscard]] std::array<double, 3> Position(Vertex vertex) const;
   [[nodiscard]] std::array<Vertex, 2> Endpoints(Edge edge) const;
   [[nodiscard]] std::vector<Corner> Corners(Face face) const;
@@ -243,6 +320,7 @@ struct CommitResult {
 // alive as a mesh: operations fail explicitly after the aggregate is destroyed.
 // Expected failures throw EditorError; allocation failures propagate. Every
 // failed operation/commit preserves accepted state and the previous candidate.
+class EditBatch;
 class EditSession {
  public:
   EditSession(EditSession&&) noexcept;
@@ -270,13 +348,66 @@ class EditSession {
   void SetPropertyRow(Property property, ElementIdentity element,
                       PropertyRow row);
   [[nodiscard]] EditorSnapshot Snapshot() const;
+  // One active batch at a time; parent mutation and commit are blocked until
+  // apply/discard/failure. Snapshot reads remain available. Moving this session
+  // transfers its batch relationship; destruction/discard invalidates the
+  // batch.
+  [[nodiscard]] EditBatch BeginBatch();
   [[nodiscard]] CommitResult Commit(std::stop_token stop = {});
   void Discard();
 
  private:
   friend struct editing_detail::Access;
+  friend class EditBatch;
   explicit EditSession(std::unique_ptr<editing_detail::Session> session);
-  std::unique_ptr<editing_detail::Session> session_;
+  std::shared_ptr<editing_detail::Session> session_;
+};
+
+// Ordered, thread-confined primitive edits against an isolated draft. Apply
+// accepts the draft into its parent session, not into the mesh. Any operation
+// failure after entering a method, or observed Apply cancellation, closes and
+// discards the entire batch, preserving the parent's prior candidate and logs.
+// Caller argument construction before method entry is outside that guarantee.
+// Snapshots pin the draft; a later edit detaches shared state when necessary.
+// Destruction discards without throwing. No mutable callback or pool escape.
+class EditBatch {
+ public:
+  EditBatch(EditBatch&&) noexcept;
+  EditBatch& operator=(EditBatch&&) noexcept;
+  ~EditBatch();
+  EditBatch(const EditBatch&) = delete;
+  EditBatch& operator=(const EditBatch&) = delete;
+  [[nodiscard]] Vertex CreateVertex(
+      std::array<double, 3> position,
+      std::span<const PropertyAssignment> properties = {});
+  [[nodiscard]] Edge CreateEdge(
+      Vertex first, Vertex second,
+      std::span<const PropertyAssignment> properties = {});
+  [[nodiscard]] Face CreateFace(
+      std::span<const FaceCorner> corners,
+      std::span<const PropertyAssignment> properties = {});
+  void SetPosition(Vertex vertex, std::array<double, 3> position);
+  void EraseVertex(Vertex vertex,
+                   ErasePolicy policy = ErasePolicy::kRejectReferenced);
+  void EraseEdge(Edge edge,
+                 ErasePolicy policy = ErasePolicy::kRejectReferenced);
+  void EraseFace(Face face, UnusedEdgePolicy policy = UnusedEdgePolicy::kKeep);
+  [[nodiscard]] Property CreateProperty(const PropertyDescriptor& descriptor);
+  void RemoveProperty(Property property);
+  void SetPropertyRow(Property property, ElementIdentity element,
+                      PropertyRow row);
+  [[nodiscard]] EditorSnapshot Snapshot() const;
+  void Apply(std::stop_token stop = {});
+  void Discard();
+
+ private:
+  friend class EditSession;
+  EditBatch(std::weak_ptr<editing_detail::Session> parent,
+            std::unique_ptr<editing_detail::Session> draft);
+  void Check() const;
+  void Close() const noexcept;
+  std::weak_ptr<editing_detail::Session> parent_;
+  EditSession draft_;
 };
 
 struct ForkResult;

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-EDIT-001 |
-| Version | 0.2.1 |
+| Version | 0.3.0 |
 | Status | Native development interface; no stable API/ABI or release |
 | Owner | Geometry |
 | Related | [Raw storage](attributes.md), [incidence inspection](topology.md) |
@@ -97,6 +97,70 @@ Captured candidate data remains queryable after discard, but its pending objects
 never become valid in the accepted mesh. Accepted snapshots report
 `IsCandidate()` false. Dense materialization retains the same provenance.
 
+### Snapshot traversal
+
+`VertexElements()`, `EdgeElements()`, `FaceElements()`, `CornerElements()` and
+`PropertyElements()` return immutable forward ranges over live records, skipping
+vacant pool slots. The vertex edge/corner and edge/face corner overloads retain
+incidence order, including authored face cycles, wires, parallel edges and all
+non-manifold occurrences. Range order and slot position are not persistent
+identity. A default range is empty; capturing a range from a default snapshot
+throws `kInvalidObject`.
+
+Creating, copying and traversing a range allocates no new storage after snapshot
+capture. Each range and iterator retains the captured snapshot through shared
+ownership. An iterator therefore remains usable after its range, snapshot C++
+object or editable owner is destroyed. Forward iterator copies advance
+independently. End/default iterators cannot be dereferenced or incremented;
+these operations throw `kInvalidObject`.
+
+Dereferencing returns the existing typed identity handle. Its ordinary methods
+still query the owner's **current accepted state**, and can fail after deletion
+or owner destruction. Use snapshot methods such as `Position(vertex)`,
+`Endpoints(edge)` and `GetVertex/GetEdge/GetFace(corner)` for captured data.
+Retain the snapshot when those query methods are needed; an iterator's retained
+state does not turn the handle into a snapshot-bound value.
+
+`ViewRow(property, element)` returns a read-only `PropertyRowView` that pins the
+captured property row. `Values()` returns its immutable typed backing by
+reference; `IsPresent()` retains explicit missingness. That reference remains
+valid while the view or another owner of the captured snapshot remains alive.
+A default view throws `kInvalidObject`. This view does not normalize, convert or
+fill values. Existing vector collection queries, `Row()`, `Descriptor()`, dense
+materialization and export remain owned copying interfaces.
+
+### Atomic primitive batches
+
+`session.BeginBatch()` returns a move-only `EditBatch` with the same checked
+primitive creation, position/property replacement and erase operations as a
+session. Operations can refer to identities created earlier in that batch.
+`batch.Apply(stop)` atomically accepts its candidate and change logs into the
+**parent session**; `session.Commit()` remains the mesh publication point.
+There is no mutable callback, exposed pool record or dense roundtrip.
+
+Only one batch may be active for a session. Parent mutators, a second batch and
+parent commit throw `kBatchActive` until the batch applies, discards, fails or is
+destroyed. Parent snapshot capture remains available and observes the previous
+candidate. Moving a session transfers its relationship with the batch; replacing,
+destroying or explicitly discarding the parent invalidates the batch safely.
+The batch retains a weak parent relationship rather than a borrowed session
+address. Moving a batch transfers its draft; replacing one discards its old draft.
+
+A validation/allocation failure after entering any batch method closes and
+discards the whole batch. It preserves accepted state **and the previous parent
+candidate and change logs**, including earlier successful session edits. Caller
+argument construction before method entry is outside this guarantee. An observed
+cancellation in `Apply` also closes/discards; retry requires a new batch. A stop
+request racing completed apply can leave a complete applied result. Destruction
+discards without throwing. Issued generations are never rolled back, so abandoned
+objects cannot revive through later allocation.
+
+`batch.Snapshot()` owns a candidate observation with the base revision and remains
+queryable after apply, failure or discard. Subsequent draft edits detach shared
+state as needed, preserving all captured observations. Batch apply performs no
+allocation after its final cancellation check. It does not rebase or bypass the
+parent's existing revision-conflict check at commit.
+
 **EDIT-007.** Substantial computation should first evaluate parallel decomposition.
 Independent analysis and candidate computation may use immutable owned snapshots
 with a declared execution budget. CPU threads, processes and optional GPU work
@@ -187,8 +251,13 @@ rebase, topology interpolation, undo or history-resurrection policy is provided.
 ## Execution and thread safety
 
 An `EditorSnapshot` is immutable and shareable between threads. Different
-sessions may compute candidates concurrently; each session is confined to the
-thread that began it. The owner serializes publication, and exactly one
+sessions may compute candidates concurrently; each session and its batch is
+confined to the thread that began the session. Batch staging/apply is ordered
+serial work because later topology/property edits can depend on earlier identities
+and incidence changes. Independent preparation and analysis may use immutable
+snapshots with the shared execution budget. Batches launch no workers and create
+no competing worker pool; persistent editor storage retains the existing payload
+accounting boundary. The owner serializes publication, and exactly one
 same-base candidate can commit before the others conflict. Current object
 queries and accepted snapshot capture coordinate with commits. Moving or
 destroying the aggregate object itself requires external synchronization with
@@ -232,13 +301,19 @@ caps with these algorithms; triangulation retains its explicit exclusions.
 
 The implementation uses private 64-record copy-on-write pages. A local edit
 copies the affected pages and their record payloads; retained snapshots share
-unchanged pages. Beginning a session, staging a mutator and committing still
-copy page-directory/free-list metadata and change logs. This is not constant-time
-editing, and many single-element mutators can accumulate substantial bookkeeping
-cost. Bulk raw import builds unpublished storage directly and produces full
+unchanged pages. Beginning a session, staging an individual mutator and committing still
+copy page-directory/free-list metadata and change logs. A batch copies that
+metadata and the prior session logs once on construction, then detaches only
+touched pages/records across its ordered operations. Capturing a batch snapshot
+requires a later operation to detach shared state again. New records, incidence,
+properties and change-log growth can still allocate. This is not constant-time
+editing. Repeated single-element mutators can accumulate substantial bookkeeping
+cost; a batch amortizes the directory/log copies for those operations. Bulk raw import builds unpublished storage directly and produces full
 dense correspondence, with its traversal and allocation cost. Adding a property
 initializes its whole domain; full dense materialization/export traverses and
-copies the mesh. Large-scale batch editing and undo remain future work.
+copies the mesh. General high-level topology operations and undo remain future work. The current
+batch groups the implemented checked primitives; it does not implement collapse,
+chord insertion, extrusion or subdivision.
 
 Use the [native build/install commands](attributes.md#build-and-installed-consumer).
 The raw target `meshvale::geometry` is a compiled static library; `meshvale::editing` is a

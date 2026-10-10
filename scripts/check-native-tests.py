@@ -19,10 +19,11 @@ def main():
     expected = {'attribute_storage', 'polygon_topology', 'pooled_editing',
                 'shared_execution_leases', 'exact_polygon_triangulation',
                 'triangulation_fraction_oracle', 'checked_attribute_numerics',
-                'eigen_scalar_storage'}
+                'eigen_scalar_storage', 'editor_traversal_batch'}
     if args.allocation_probe == 'enabled':
         expected.update({'execution_allocation_failure',
-                         'attribute_numerics_allocation_failure'})
+                         'attribute_numerics_allocation_failure',
+                         'editor_batch_allocation_failure'})
     if len(names) != len(expected) or set(names) != expected:
         parser.error(f'expected {sorted(expected)}, found {names}')
     print(f'Native test inventory passed: {len(names)} suites; '
