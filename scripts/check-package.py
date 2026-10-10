@@ -37,13 +37,16 @@ def inspect(path):
             assert not PurePosixPath(member.name).is_absolute() and ".." not in parts and len(parts) >= 2, member.name
             name = "/".join(parts[1:]); names.append(name)
             assert name in allowed or parts[1] in directories or name in {
-                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py"}, name
+                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py"}, name
             assert not any(part in {".local",".scratch","__pycache__","references","build",".github"} for part in parts), name
             assert not name.endswith((".pyc",".pyd",".so",".obj",".log")), name
         assert "python/meshvale_geometry/_version.py" in names
         assert ".clang-format" in names
+        assert "scripts/check-cpp-format.py" in names
         assert "python/bindings.cpp" in names
-        assert "include/meshvale/geometry/python/record.hpp" in names
+        for header in ["attributes", "mesh", "topology", "python/record"]:
+            for extension in ["h", "hpp"]:
+                assert "include/meshvale/geometry/" + header + "." + extension in names
         assert "tests/python/test_mesh.py" in names
         assert "python/meshvale_reports/report-v1.schema.json" in names
         assert "tests/reports/test_reports.py" in names

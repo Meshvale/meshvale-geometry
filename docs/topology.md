@@ -1,6 +1,6 @@
 # Polygon topology inspection
 
-Contract version **0.1.0**, development interface. [topology.hpp](../include/meshvale/geometry/topology.hpp) owns C++ shapes; [the storage contract](attributes.md) owns raw mesh and attribute layout.
+Contract version **0.1.0**, development interface. [topology.h](../include/meshvale/geometry/topology.h) owns C++ shapes; [the storage contract](attributes.md) owns raw mesh, attribute layout and header-path compatibility.
 
 ## GEO-TOPOLOGY-001: Owned general incidence
 

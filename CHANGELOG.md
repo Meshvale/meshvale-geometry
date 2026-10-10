@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+### Changed
+
+- Canonical C++ headers use `.h`; existing `.hpp` includes remain installed forwarding headers with the same definitions and API names.
+- Project C++ is formatted with the Google configuration and a pinned formatter check in CI; public naming compatibility is retained separately.
+
 ### Added
 
 - Raw variable-length polygon storage with non-mutating structural diagnostics.
