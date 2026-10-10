@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | GEO-PYTHON-001 |
-| Version | 0.1.0 |
+| Version | 0.2.0 |
 | Status | Development interface; no stable release |
 | Owner | Python snapshot ownership, buffer exchange and package consumption |
 
