@@ -3,6 +3,9 @@ name: Portable Python development candidates
 
 "on":
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/portable-candidates.yml
 
 permissions:
   contents: read
@@ -32,9 +35,9 @@ jobs:
         python -c "import hashlib,pathlib; p=pathlib.Path('{wheel}'); print('Unrepaired SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())" >> /output/dependencies.txt &&
         auditwheel repair --plat manylinux_2_28_x86_64 --wheel-dir "{dest_dir}" "{wheel}" && auditwheel show "{dest_dir}"/*.whl >> /output/dependencies.txt
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: >-
-        python -m delvewheel show --exclude msvcp140.dll "{wheel}" > "{project}/.local/preview/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
-        python -c "import hashlib,pathlib; p=pathlib.Path(r'{wheel}'); print('Unrepaired SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())" >> "{project}/.local/preview/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
-        python -m delvewheel repair --exclude msvcp140.dll --wheel-dir "{dest_dir}" "{wheel}" && python -m delvewheel show --exclude msvcp140.dll "{dest_dir}/*.whl" >> "{project}/.local/preview/dependencies-%MESHVALE_BUILD_KIND%.txt"
+        python -m delvewheel show --exclude msvcp140.dll "{wheel}" > "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
+        python -c "import hashlib,pathlib; p=pathlib.Path(r'{wheel}'); print('Unrepaired SHA256:',hashlib.sha256(p.read_bytes()).hexdigest())" >> "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt" &&
+        python -m delvewheel repair --exclude msvcp140.dll --wheel-dir "{dest_dir}" "{wheel}" && python -c "import pathlib,subprocess,sys; [subprocess.run([sys.executable,'-m','delvewheel','show','--exclude','msvcp140.dll',str(p)],check=True) for p in pathlib.Path(r'{dest_dir}').glob('*.whl')]" >> "%MESHVALE_PREVIEW_DIR%/dependencies-%MESHVALE_BUILD_KIND%.txt"
       CIBW_BEFORE_BUILD_LINUX: >-
         python -m pip install --only-binary=:all: cmake==4.3.1 && python -m pip freeze && cmake --version && c++ --version && ldd --version
       CIBW_BEFORE_BUILD_WINDOWS: >-
@@ -77,21 +80,25 @@ jobs:
       - name: Build, inspect and test repaired source candidate
         run: python -m cibuildwheel --output-dir .local/preview/source-wheels
         env:
-          CIBW_ENVIRONMENT_WINDOWS: MESHVALE_BUILD_KIND=source
+          CIBW_ENVIRONMENT_WINDOWS: >-
+            MESHVALE_PREVIEW_DIR="${{ github.workspace }}/.local/preview" MESHVALE_BUILD_KIND=source
       - name: Rebuild, inspect and test repaired candidate from source archive without Git
         shell: bash
         run: python -m cibuildwheel .local/preview/sdist/*.tar.gz --output-dir .local/preview/wheels
         env:
-          CIBW_ENVIRONMENT_WINDOWS: MESHVALE_BUILD_KIND=archive
+          CIBW_ENVIRONMENT_WINDOWS: >-
+            MESHVALE_PREVIEW_DIR="${{ github.workspace }}/.local/preview" MESHVALE_BUILD_KIND=archive
       - name: Inspect final publication contents and record identities
         shell: bash
         run: |
           python scripts/check-package.py .local/preview/source-wheels/*.whl .local/preview/wheels/*.whl
           python - <<'PY'
-          import hashlib, json, os, subprocess, zipfile
+          import hashlib, json, os, subprocess, tarfile, zipfile
+          from email.parser import Parser
           from pathlib import Path
           root = Path('.local/preview')
           artifacts = []
+          versions = set()
           for path in sorted(root.rglob('*')):
               if path.suffix != '.whl' and not path.name.endswith('.tar.gz'):
                   continue
@@ -103,16 +110,22 @@ jobs:
                       metadata = next(name for name in names if name.endswith('.dist-info/METADATA'))
                       item['wheel_metadata'] = archive.read(wheel).decode()
                       item['package_metadata'] = archive.read(metadata).decode()
+                      versions.add(Parser().parsestr(item['package_metadata'])['Version'])
                       item['native_files'] = [name for name in names if name.endswith(('.so', '.pyd', '.dll')) or '.so.' in name]
                       item['license_files'] = [name for name in names if '.dist-info/licenses/' in name]
                   expected = os.environ['CIBW_BUILD']
                   assert '-cp313-cp313-' in path.name, path.name
                   assert ('manylinux_2_28_x86_64' in path.name) if 'manylinux' in expected else path.name.endswith('-win_amd64.whl'), path.name
+              if path.name.endswith('.tar.gz'):
+                  with tarfile.open(path) as archive:
+                      info = next(member for member in archive.getmembers() if member.name.endswith('/PKG-INFO'))
+                      versions.add(Parser().parsestr(archive.extractfile(info).read().decode())['Version'])
               artifacts.append(item)
           assert len(artifacts) == 3, artifacts
+          assert len(versions) == 1, versions
           manifest = {'source_revision': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                       'candidate_only': True, 'mesh_schema': 'meshvale.mesh/1', 'report_schema': 'meshvale.report/1',
-                      'cibuildwheel': '4.2.0', 'selected_build': os.environ['CIBW_BUILD'], 'artifacts': artifacts}
+                      'package_version': next(iter(versions)), 'cibuildwheel': '4.2.0', 'selected_build': os.environ['CIBW_BUILD'], 'artifacts': artifacts}
           (root / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
           PY
       - name: Retain development candidates and their notices
