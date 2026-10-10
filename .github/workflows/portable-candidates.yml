@@ -53,6 +53,7 @@ jobs:
         python -I -c "import meshvale_reports as r,sys; assert r.schema_document()[chr(36)+'id']=='urn:meshvale:report-envelope:1'; assert 'meshvale_geometry' not in sys.modules and 'jsonschema' not in sys.modules" &&
         python -I -m unittest discover -s "{package}/tests/python" -v &&
         python -I "{package}/examples/python/inspect_mesh.py" &&
+        python -I "{package}/examples/python/triangulate_mesh.py" &&
         python -I "{package}/examples/record-consumer/check.py" geometry-first &&
         python -I "{package}/examples/record-consumer/check.py" consumer-first &&
         python -I -m unittest discover -s "{package}/tests/reports" -v &&

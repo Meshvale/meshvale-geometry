@@ -4,18 +4,14 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include "snapshot.h"
+#include "triangulation_bindings.h"
+
 namespace nb = nanobind;
 namespace geo = meshvale::geometry;
 
 namespace {
-class Snapshot {
-  geo::Mesh mesh_;
-
- public:
-  Snapshot() = default;
-  explicit Snapshot(geo::Mesh mesh) : mesh_(std::move(mesh)) {}
-  const geo::Mesh& data() const { return mesh_; }
-};
+using geo::bindings::Snapshot;
 nb::list diagnostics(const std::vector<geo::Diagnostic>& values) {
   nb::list result;
   for (const auto& value : values) {
@@ -28,7 +24,7 @@ nb::list diagnostics(const std::vector<geo::Diagnostic>& values) {
   return result;
 }
 nb::dict topology(const Snapshot& mesh) {
-  const auto inspection = geo::inspect_topology(mesh.data());
+  const auto inspection = geo::inspect_topology(mesh.Data());
   nb::dict result;
   result["diagnostics"] = diagnostics(inspection.diagnostics);
   nb::list checks;
@@ -106,21 +102,22 @@ NB_MODULE(_geometry, module) {
           "snapshot.")
       .def("to_record",
            [](const Snapshot& mesh) {
-             return geo::python::to_record(mesh.data());
+             return geo::python::to_record(mesh.Data());
            })
       .def_prop_ro(
           "vertex_count",
-          [](const Snapshot& mesh) { return mesh.data().positions.size(); })
+          [](const Snapshot& mesh) { return mesh.Data().positions.size(); })
       .def_prop_ro(
           "face_count",
-          [](const Snapshot& mesh) { return mesh.data().face_count(); })
+          [](const Snapshot& mesh) { return mesh.Data().face_count(); })
       .def_prop_ro("corner_count",
                    [](const Snapshot& mesh) {
-                     return mesh.data().corner_vertices.size();
+                     return mesh.Data().corner_vertices.size();
                    })
       .def("inspect_storage",
            [](const Snapshot& mesh) {
-             return diagnostics(geo::inspect_storage(mesh.data()));
+             return diagnostics(geo::inspect_storage(mesh.Data()));
            })
       .def("inspect_topology", &topology);
+  geo::bindings::RegisterTriangulationBindings(module);
 }
