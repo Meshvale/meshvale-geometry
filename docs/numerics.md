@@ -10,7 +10,10 @@
 [`PositionBuffer`](../include/meshvale/geometry/position_buffer.h) owns raw xyz
 rows through a private Eigen 3.4.1 row-major dynamic matrix implementation.
 Declarations live in `.h`; ownership and storage details live in compiled `.cpp`.
-Public headers expose no Eigen types or borrowed matrix expressions. The
+Shared Eigen aliases live in the private [src/eigen_types.h](../src/eigen_types.h):
+row-major position
+storage, typed dynamic vectors, unaligned const vector Maps and the signed host
+index. Public headers expose no Eigen types or borrowed matrix expressions. The
 [raw mesh contract](attributes.md) owns polygon offsets, corner indices and all
 seven independent attribute scalar types.
 
@@ -25,7 +28,9 @@ unchanged. Move transfers ownership without allocation; self-copy/self-move reta
 the value. No mutable reference, vector iterator or Eigen Map escapes the buffer.
 
 `Get(row)` returns an owned `std::array<double,3>`; `Set(row,value)` replaces an
-existing row; `Append(value)` adds one complete row. Get/Set throw
+existing row; `Append(value)` adds one complete row. This array is a copied xyz
+value at the interface; the backing allocation is the owned Eigen matrix.
+Get/Set throw
 `std::out_of_range` outside the logical row count. Read, edit and Set explicitly:
 
 ```cpp
@@ -78,7 +83,10 @@ missingness/normalization metadata does not authorize filling or conversion.
 
 The selected Core subset defines `EIGEN_MPL2_ONLY`, `EIGEN_DONT_PARALLELIZE` and
 `EIGEN_FAST_MATH=0`, with strict compiler floating-point flags. Eigen starts no
-additional worker pool. Product operations retain worker admission, thresholds,
+additional worker pool. This macro does not disable product parallelism.
+Attribute reductions partition admitted large inputs into independent row ranges
+computed by product-owned threads, then join all workers before returning.
+Product operations retain worker admission, thresholds,
 cancellation and joins under the [execution contract](execution.md). Raw buffers
 are outside context accounting. Triangulation retains logical captured/output
 row charges and its documented capacity/bookkeeping exclusions; Eigen allocations
@@ -147,6 +155,10 @@ capacity or adapter header is excluded. Caller raw storage/export copies and ups
 allocator internals, thread stacks/runtime and exception-runtime allocations are
 excluded. Expected diagnostics and serial reasons use immutable literal codes;
 no diagnostic string allocation is needed.
+Canonical attribute channels and admitted capture/output storage remain typed
+scalar buffers; this stage does not migrate all attributes to owning Eigen
+matrices or expose reusable matrix views. Dense and ragged rows use the same
+checked typed vector Map, preserving their offsets and authored presence.
 Eigen uses lexical unaligned typed Maps over scalar arrays and evaluated scalar
 reductions; no dynamic Eigen matrix temporary is allocated. Capture/output leases
 are released only after their owned storage. `PeakTrackedPayloadBytes()` reports

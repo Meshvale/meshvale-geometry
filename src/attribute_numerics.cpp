@@ -3,7 +3,6 @@
 
 #include <meshvale/geometry/execution.h>
 
-#include <Eigen/Core>
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -15,6 +14,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#include "eigen_types.h"
 
 namespace meshvale::geometry {
 namespace {
@@ -36,7 +37,8 @@ std::size_t MultiplyBytes(std::size_t a, std::size_t b) {
   return a * b;
 }
 void CheckExtent(index_t value) {
-  if (value > static_cast<index_t>(std::numeric_limits<Eigen::Index>::max()) ||
+  if (value > static_cast<index_t>(
+                  std::numeric_limits<eigen_types::Index>::max()) ||
       value > std::numeric_limits<std::size_t>::max())
     throw Failure{"numerical.host_extent"};
 }
@@ -408,9 +410,8 @@ AttributeReductionResult AttributeReductionResult::Reduce(
                     values.Data() + static_cast<std::size_t>(begin);
                 if (reinterpret_cast<std::uintptr_t>(data) % alignof(T))
                   throw Failure{"numerical.alignment"};
-                const Eigen::Map<const Eigen::Matrix<T, Eigen::Dynamic, 1>,
-                                 Eigen::Unaligned>
-                    mapped(data, static_cast<Eigen::Index>(end - begin));
+                const eigen_types::ConstVectorMap<T> mapped(
+                    data, static_cast<eigen_types::Index>(end - begin));
                 output[row] = mapped.unaryExpr(CheckedScalar<T>{stop, squared})
                                   .redux(CheckedAdd<T>{stop});
               } catch (const Failure& failure) {
