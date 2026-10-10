@@ -14,6 +14,7 @@
 #include <optional>
 #include <ranges>
 #include <stdexcept>
+#include <stop_token>
 #include <utility>
 #include <vector>
 
