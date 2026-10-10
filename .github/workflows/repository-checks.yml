@@ -56,6 +56,12 @@ jobs:
         run: cmake --build .local/editing-consumer --config Release
       - name: Test installed editing consumer
         run: ctest --test-dir .local/editing-consumer -C Release --output-on-failure
+      - name: Configure installed triangulation consumer
+        run: cmake -S examples/triangulation-consumer -B .local/triangulation-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+      - name: Build installed triangulation consumer
+        run: cmake --build .local/triangulation-consumer --config Release
+      - name: Test installed triangulation consumer
+        run: ctest --test-dir .local/triangulation-consumer -C Release --output-on-failure
 
   native-sanitizers:
     runs-on: ubuntu-latest
