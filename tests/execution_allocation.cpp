@@ -168,10 +168,13 @@ void PositionRollbackCases() {
   PositionBuffer empty;
   empty.clear();
   destination.Set(0, {7, 8, 9});
-  destination = std::move(destination);
+  auto* alias = &destination;
+  destination = std::move(*alias);
   auto moved = std::move(source);
   reject_allocations = false;
-  Require(source.empty() && moved.size() == 2 && empty.empty(),
+  Require(source.empty() && moved.size() == 2 && empty.empty() &&
+              destination.size() == 1 &&
+              destination.Get(0) == PositionBuffer::Row{7, 8, 9},
           "position empty/move paths allocated or lost rows");
 }
 }  // namespace
