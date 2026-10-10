@@ -8,14 +8,15 @@
 #include <stdexcept>
 #include <utility>
 
+#include "eigen_types.h"
+
 namespace meshvale::geometry {
 namespace {
-constexpr std::size_t kRowBytes = 3 * sizeof(double);
+constexpr std::size_t kPositionComponents =
+    eigen_types::PositionMatrix::ColsAtCompileTime;
+constexpr std::size_t kRowBytes = kPositionComponents * sizeof(double);
 static_assert(sizeof(PositionBuffer::Row) == kRowBytes);
 static_assert(sizeof(double) == 8 && std::numeric_limits<double>::is_iec559);
-static_assert(EIGEN_WORLD_VERSION == 3 && EIGEN_MAJOR_VERSION == 4 &&
-                  EIGEN_MINOR_VERSION == 1,
-              "Position storage requires the pinned Eigen 3.4.1 headers");
 
 std::size_t MaximumRows() {
   // Leave room for Eigen's internal aligned-allocation padding/header before
@@ -25,7 +26,8 @@ std::size_t MaximumRows() {
   return std::min(
       (std::numeric_limits<std::size_t>::max() - kAlignmentOverhead) /
           kRowBytes,
-      static_cast<std::size_t>(std::numeric_limits<Eigen::Index>::max()) / 3);
+      static_cast<std::size_t>(std::numeric_limits<eigen_types::Index>::max()) /
+          kPositionComponents);
 }
 void CheckRows(std::size_t rows) {
   if (rows > MaximumRows())
@@ -34,10 +36,11 @@ void CheckRows(std::size_t rows) {
 }  // namespace
 
 struct PositionBuffer::Impl {
-  Eigen::Matrix<double, Eigen::Dynamic, 3, Eigen::RowMajor> allocation;
+  eigen_types::PositionMatrix allocation;
   std::size_t count = 0;
   explicit Impl(std::size_t capacity)
-      : allocation(static_cast<Eigen::Index>(capacity), 3) {}
+      : allocation(static_cast<eigen_types::Index>(capacity),
+                   eigen_types::PositionMatrix::ColsAtCompileTime) {}
 };
 
 PositionBuffer::PositionBuffer() = default;
@@ -87,12 +90,14 @@ void PositionBuffer::clear() noexcept {
 PositionBuffer::Row PositionBuffer::Get(std::size_t row) const {
   if (row >= size()) throw std::out_of_range("Position row is out of range");
   Row result;
-  std::memcpy(result.data(), impl_->allocation.data() + row * 3, kRowBytes);
+  std::memcpy(result.data(),
+              impl_->allocation.data() + row * kPositionComponents, kRowBytes);
   return result;
 }
 void PositionBuffer::Set(std::size_t row, const Row& value) {
   if (row >= size()) throw std::out_of_range("Position row is out of range");
-  std::memcpy(impl_->allocation.data() + row * 3, value.data(), kRowBytes);
+  std::memcpy(impl_->allocation.data() + row * kPositionComponents,
+              value.data(), kRowBytes);
 }
 void PositionBuffer::Append(const Row& value) {
   if (size() == MaximumRows())
@@ -105,8 +110,8 @@ void PositionBuffer::Append(const Row& value) {
         capacity <= MaximumRows() / 2 ? capacity * 2 : MaximumRows();
     reserve(std::max(needed, grown));
   }
-  std::memcpy(impl_->allocation.data() + impl_->count * 3, value.data(),
-              kRowBytes);
+  std::memcpy(impl_->allocation.data() + impl_->count * kPositionComponents,
+              value.data(), kRowBytes);
   ++impl_->count;
 }
 void PositionBuffer::AssignBytes(std::span<const std::byte> source) {

@@ -22,6 +22,8 @@ set_target_properties(meshvale_geometry PROPERTIES EXPORT_NAME geometry POSITION
 target_compile_features(meshvale_geometry PUBLIC cxx_std_20)
 # Resolve header usage privately rather than exporting a LINK_ONLY Eigen target
 # from the static library. Public headers contain no Eigen types/templates.
+# Shared aliases in src/eigen_types.h are private; installed consumers need no
+# Eigen SDK. Product schedulers admit/join workers; Eigen starts no extra pool.
 target_include_directories(meshvale_geometry SYSTEM PRIVATE
   $<TARGET_PROPERTY:Eigen3::Eigen,INTERFACE_INCLUDE_DIRECTORIES>)
 target_compile_definitions(meshvale_geometry PRIVATE
@@ -48,6 +50,7 @@ set_target_properties(meshvale_geometry_attribute_numerics PROPERTIES
 target_link_libraries(meshvale_geometry_attribute_numerics PUBLIC meshvale::editing)
 target_include_directories(meshvale_geometry_attribute_numerics SYSTEM PRIVATE
   $<TARGET_PROPERTY:Eigen3::Eigen,INTERFACE_INCLUDE_DIRECTORIES>)
+# Numerical row workers use the same admitted product scheduler policy.
 target_compile_definitions(meshvale_geometry_attribute_numerics PRIVATE
   EIGEN_MPL2_ONLY EIGEN_DONT_PARALLELIZE EIGEN_FAST_MATH=0)
 if(MSVC)
