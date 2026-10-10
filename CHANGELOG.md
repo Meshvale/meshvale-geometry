@@ -1,5 +1,10 @@
 # Changelog
 
+- Canonical attributes now own private Eigen vectors for all seven scalar
+  encodings. Replace vector alternatives with `ScalarBuffer<T>` and rebuild
+  native/per-extension consumers; raw dense/ragged shapes, bits, presence and
+  Python mesh/1 records remain unchanged. See [numerical ownership](docs/numerics.md#canonical-attribute-ownership).
+
 ## Unreleased
 
 ### Changed

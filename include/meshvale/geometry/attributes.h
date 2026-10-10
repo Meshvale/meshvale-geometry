@@ -2,6 +2,8 @@
 #ifndef MESHVALE_GEOMETRY_ATTRIBUTES_H_
 #define MESHVALE_GEOMETRY_ATTRIBUTES_H_
 
+#include <meshvale/geometry/scalar_buffer.h>
+
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -14,10 +16,10 @@ namespace meshvale::geometry {
 using index_t = std::uint64_t;
 enum class AttributeDomain { vertex, face, corner };
 using AttributeValues =
-    std::variant<std::vector<float>, std::vector<double>,
-                 std::vector<std::int32_t>, std::vector<std::uint8_t>,
-                 std::vector<std::uint16_t>, std::vector<std::uint32_t>,
-                 std::vector<std::uint64_t>>;
+    std::variant<ScalarBuffer<float>, ScalarBuffer<double>,
+                 ScalarBuffer<std::int32_t>, ScalarBuffer<std::uint8_t>,
+                 ScalarBuffer<std::uint16_t>, ScalarBuffer<std::uint32_t>,
+                 ScalarBuffer<std::uint64_t>>;
 
 struct Diagnostic {
   std::string code;

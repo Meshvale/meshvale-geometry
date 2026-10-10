@@ -141,8 +141,8 @@ std::string Quoted(const std::string& value) {
   output << '"';
   return output.str();
 }
-template <class T>
-void WriteArray(std::ostream& stream, const std::vector<T>& values) {
+template <class Values>
+void WriteArray(std::ostream& stream, const Values& values) {
   stream << '[';
   for (std::size_t i = 0; i < values.size(); ++i) {
     if (i) stream << ',';

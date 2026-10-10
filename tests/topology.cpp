@@ -97,15 +97,15 @@ void mixed_polygons_and_seams() {
   auto uv1 = uv;
   uv1.name = "uv1";
   uv1.set_index = 1;
-  std::get<std::vector<double>>(uv.values)[6] = 0.25;
-  std::get<std::vector<double>>(uv1.values)[12] = 0.75;
+  std::get<ScalarBuffer<double>>(uv.values)[6] = 0.25;
+  std::get<ScalarBuffer<double>>(uv1.values)[12] = 0.75;
   input.attributes = {uv, uv1};
   require(inspect_topology(input).topology == before.topology,
           "UV seam/sets changed connectivity");
   require(
       input.face_offsets == std::vector<index_t>{0, 3, 7, 12} &&
           input.corner_vertices.size() == 12 &&
-          std::get<std::vector<double>>(input.attributes[0].values)[6] == 0.25,
+          std::get<ScalarBuffer<double>>(input.attributes[0].values)[6] == 0.25,
       "inspection changed source");
   require(coverage(before, "self_intersection") ==
                   TopologyCheckStatus::unsupported &&

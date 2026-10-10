@@ -53,8 +53,8 @@ void multiple_uvs_and_domains() {
           "mixed mesh with two UV maps rejected");
   require(mesh.corner_vertices == loops && mesh.face_count() == 3,
           "inspection changed polygons");
-  const auto& first = std::get<std::vector<float>>(mesh.attributes[0].values);
-  const auto& second = std::get<std::vector<float>>(mesh.attributes[1].values);
+  const auto& first = std::get<ScalarBuffer<float>>(mesh.attributes[0].values);
+  const auto& second = std::get<ScalarBuffer<float>>(mesh.attributes[1].values);
   require(first[0] != second[0], "UV sets aliased");
   require(first[2] != first[6], "corner seam collapsed at shared vertex");
   mesh.attributes.push_back(mesh.attributes[0]);
@@ -77,7 +77,7 @@ void flexible_skinning() {
   require(inspect_storage(mesh).empty(),
           "zero/variable/five influences rejected");
   require(
-      std::get<std::vector<double>>(mesh.attributes[1].values).back() == 0.5,
+      std::get<ScalarBuffer<double>>(mesh.attributes[1].values).back() == 0.5,
       "storage normalized or truncated weights");
   mesh.attributes[1].offsets->at(3) = 6;
   require(inspect_storage(mesh).empty(),

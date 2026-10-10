@@ -57,11 +57,11 @@ def inspect(path):
                      "python/meshvale_geometry/triangulation.py", "tests/python/test_triangulation.py",
                      "examples/python/triangulate_mesh.py"]:
             assert name in names, name
-        for header in ["attributes", "mesh", "topology", "position_buffer", "python/record"]:
+        for header in ["attributes", "mesh", "topology", "position_buffer", "scalar_buffer", "python/record"]:
             assert "include/meshvale/geometry/" + header + ".h" in names
         assert not any(name.endswith(".hpp") for name in names)
         for name in ["src/attributes.cpp", "src/mesh.cpp", "src/topology.cpp",
-                     "src/position_buffer.cpp", "src/python/record.cpp",
+                     "src/position_buffer.cpp", "src/scalar_buffer.cpp", "tests/scalar_buffer.cpp", "src/python/record.cpp",
                      "cmake/MeshvaleEigen.cmake", "cmake/MeshvaleGeometryPythonRecord.cmake",
                      "docs/numerics.md", "include/meshvale/geometry/attribute_numerics.h",
                      "src/attribute_numerics.cpp", "tests/attribute_numerics.cpp",

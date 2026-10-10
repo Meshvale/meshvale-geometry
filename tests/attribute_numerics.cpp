@@ -50,9 +50,9 @@ void AllShapes() {
   Require(sums.Status() == AttributeReductionStatus::kAccepted &&
               norms.Status() == AttributeReductionStatus::kAccepted,
           "dense reduction rejected");
-  Require(std::get<std::vector<T>>(sums.CopyValues()) ==
+  Require(std::get<ScalarBuffer<T>>(sums.CopyValues()) ==
                   std::vector<T>({7, 5, 0}) &&
-              std::get<std::vector<T>>(norms.CopyValues()) ==
+              std::get<ScalarBuffer<T>>(norms.CopyValues()) ==
                   std::vector<T>({25, 9, 0}),
           "wrong dense arithmetic or encoding");
   Require(sums.Presence()[2] == 0 && std::get<T>(sums.Get(1)) == 5,
@@ -66,9 +66,9 @@ void AllShapes() {
   a.present = std::vector<std::uint8_t>{1, 1, 0, 1};
   auto ragged = ComputeAttributeRowSums(a, 4, {}, execution);
   auto ragged_norm = ComputeAttributeRowSquaredNorms(a, 4, {}, execution);
-  Require(std::get<std::vector<T>>(ragged.CopyValues()) ==
+  Require(std::get<ScalarBuffer<T>>(ragged.CopyValues()) ==
                   std::vector<T>({15, 0, 0, 7}) &&
-              std::get<std::vector<T>>(ragged_norm.CopyValues()) ==
+              std::get<ScalarBuffer<T>>(ragged_norm.CopyValues()) ==
                   std::vector<T>({55, 0, 0, 25}),
           "ragged/unaligned-row arithmetic failed");
   Require(ragged.Presence()[1] == 1 && ragged.Presence()[2] == 0,
@@ -83,7 +83,7 @@ void AllShapes() {
   moved = std::move(*alias);
   Require(std::get<T>(moved.Get(0)) == 15, "self move lost owner");
   moved = {};
-  Require(std::get<std::vector<T>>(exported)[3] == 7,
+  Require(std::get<ScalarBuffer<T>>(exported)[3] == 7,
           "export retained a stale view");
 }
 void FloatingBitsAndDomains() {
@@ -94,13 +94,13 @@ void FloatingBitsAndDomains() {
   const auto nan = std::bit_cast<double>(std::uint64_t{0x7ff8000000001234});
   a.values = std::vector<double>{nan, -0.0, 3, 4};
   a.present = std::vector<std::uint8_t>{0, 1};
-  const auto bytes = std::get<std::vector<double>>(a.values);
+  const auto bytes = std::get<ScalarBuffer<double>>(a.values);
   auto r = ComputeAttributeRowSquaredNorms(a, 2, {}, execution);
   Require(r.Status() == AttributeReductionStatus::kAccepted &&
               std::get<double>(r.Get(1)) == 25,
           "missing NaN evaluated");
   Require(
-      std::memcmp(bytes.data(), std::get<std::vector<double>>(a.values).data(),
+      std::memcmp(bytes.data(), std::get<ScalarBuffer<double>>(a.values).data(),
                   bytes.size() * sizeof(double)) == 0,
       "double NaN/signed-zero source bits changed");
   (*a.present)[0] = 1;
@@ -115,11 +115,11 @@ void FloatingBitsAndDomains() {
   a.values = std::vector<float>{std::bit_cast<float>(std::uint32_t{0x7fc01234}),
                                 -0.0F, 3, 4};
   a.present = std::vector<std::uint8_t>{0, 1};
-  const auto float_bytes = std::get<std::vector<float>>(a.values);
+  const auto float_bytes = std::get<ScalarBuffer<float>>(a.values);
   auto f = ComputeAttributeRowSums(a, 2, {}, execution);
   Require(std::get<float>(f.Get(1)) == 7 &&
               std::memcmp(float_bytes.data(),
-                          std::get<std::vector<float>>(a.values).data(),
+                          std::get<ScalarBuffer<float>>(a.values).data(),
                           float_bytes.size() * sizeof(float)) == 0,
           "float source bits or encoding changed");
   // Independent corner UV sets are reduced as separate channels with no weld.
@@ -245,7 +245,7 @@ void ShapeAndLifetime() {
   auto empty = ComputeAttributeRowSums(a, 0, {}, e);
   Require(empty.Status() == AttributeReductionStatus::kAccepted &&
               empty.Presence().empty() &&
-              std::get<std::vector<double>>(empty.CopyValues()).empty(),
+              std::get<ScalarBuffer<double>>(empty.CopyValues()).empty(),
           "empty encoding lost");
 }
 void BudgetAndWorkers() {

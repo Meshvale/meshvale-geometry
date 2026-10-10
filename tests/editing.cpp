@@ -595,7 +595,7 @@ void ExactPropertyRowsAndChannelIdentity() {
             "raw projection changed scalar encoding, missingness or metadata");
   }
   auto copied_row = properties.front().Row(deleted.Identity());
-  std::get<std::vector<float>>(copied_row.values).front() = 100;
+  std::get<ScalarBuffer<float>>(copied_row.values).front() = 100;
   auto copied_descriptor = properties.front().Descriptor();
   copied_descriptor.metadata.clear();
   Require(

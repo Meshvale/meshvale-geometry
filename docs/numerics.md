@@ -1,9 +1,9 @@
-# Numerical position and attribute operations
+# Numerical position and attribute storage and operations
 
 | Field | Value |
 |---|---|
 | ID | MESHVALE-NUMERICS-001 |
-| Version | 0.2.0 |
+| Version | 0.3.0 |
 | Status | Native development interface; no stable API/ABI or release |
 | Owner | Geometry |
 
@@ -15,7 +15,70 @@ row-major position
 storage, typed dynamic vectors, unaligned const vector Maps and the signed host
 index. Public headers expose no Eigen types or borrowed matrix expressions. The
 [raw mesh contract](attributes.md) owns polygon offsets, corner indices and all
-seven independent attribute scalar types.
+seven independent attribute scalar types. Canonical attribute scalars now also
+own Eigen vectors through [`ScalarBuffer<T>`](../include/meshvale/geometry/scalar_buffer.h).
+The typed scalar vector is the backing allocation, rather than a Map over a
+`std::vector`. Offsets and presence remain independent row metadata.
+
+## Canonical attribute ownership
+
+`AttributeValues` is a variant of `ScalarBuffer<float>`, `ScalarBuffer<double>`,
+`ScalarBuffer<int32_t>`, `ScalarBuffer<uint8_t>`, `ScalarBuffer<uint16_t>`,
+`ScalarBuffer<uint32_t>` and `ScalarBuffer<uint64_t>`, in that order. Each owns a
+private Eigen dynamic vector through a nullable value-type implementation.
+Default and moved-from buffers are empty, reusable and allocate no storage.
+Copies own independent logical scalars and omit unused source capacity. There
+are no Eigen types in installed declarations; link `meshvale::geometry` for the
+seven explicit compiled instantiations.
+
+Flat scalar ownership deliberately retains malformed shapes: component width,
+dense/ragged offsets, authored/missing rows and semantic metadata remain on the
+`Attribute`. It does not force ragged weights into four columns or merge corner
+UV/normal rows with positions. All seven encodings, signed zeros, floating NaN
+payloads and integer joint identifiers above 2^53 survive byte-copy construction,
+copy, growth and export. No normalization, truncation, type conversion or shape
+repair occurs in storage. Offsets and presence masks keep their current vector
+representation; reduction result/capture allocations keep their separate admitted
+implementation below. This completes canonical attribute scalar ownership, not
+every metadata/result allocation or a skinning evaluator.
+
+The contiguous scalar interface provides size/capacity/reserve/resize/clear,
+checked indexing/front/back, pointer iterators, `Values()` spans, scalar append
+and range insert. References and pointers address real owned `T` objects.
+Borrowing requires a live owner with no storage replacement, mutation races,
+move or destruction; separate immutable owners support concurrent reads.
+Reserve and growing resize/append, insert and assignment can invalidate views.
+Copy assignment and allocating operations preserve the old value on allocation
+or length failure. Count construction and newly exposed resize slots initialize
+to `T{}`. Clear retains capacity; empty byte assignment releases it. Insert
+constructs a replacement before publication and accepts self-overlapping ranges.
+Pointer-range input must be ordered within one live scalar array; insert positions
+must belong to the destination's logical range, including its end.
+
+`AssignBytes` accepts complete native-format scalars, including misaligned input,
+and reads all bytes before replacement. `CopyBytesTo` requires the exact logical
+byte count and uses an overlap-safe copy. Bad byte extents throw
+`std::invalid_argument`, invalid indices/insert positions throw
+`std::out_of_range`, and scalar/byte/alignment/signed-host ceilings throw
+`std::length_error`; allocation failures propagate `std::bad_alloc`. These are
+process-local transfers, not portable serialization. Buffer equality preserves
+the former scalar comparison semantics: signed zeros compare equal and NaN
+compares unequal, even though byte copying preserves their different bits.
+
+This is an intentional C++ source/ABI change. Vector assignment remains copying
+ingress, but replace `std::get<std::vector<T>>(attribute.values)` with
+`std::get<ScalarBuffer<T>>(attribute.values)`. Rebuild Geometry and all native or
+per-extension record consumers together; old binaries cannot consume the new
+layout. Generic variant visitors can use the contiguous scalar interface. The
+Python `meshvale.mesh/1` schema, scalar names/formats, raw bytes, independent
+immutable exports and extension-domain ownership remain unchanged.
+
+Raw storage construction/copy does not receive an execution context or work
+policy. Its single byte transfer remains serial to retain exact ownership and
+publication semantics without creating unmanaged workers. This is not a
+parallel throughput claim; substantial numerical processing uses the admitted
+operation scheduler below. Parallel raw capture/preparation requires its own
+context-aware operation contract and qualified threshold.
 
 ## PositionBuffer interface
 
@@ -75,7 +138,7 @@ Eigen position ownership does not replace operation-specific guarantees.
 represented binary64 coordinates and face/corner correspondence. Positions store
 bytes; storage does not perform approximate orientation/planarity or transforms.
 
-Attributes retain all seven typed one-dimensional buffers, domains, offsets,
+Attributes retain all seven Eigen-owned typed one-dimensional buffers, domains, offsets,
 presence and metadata. Later numerical views must check shape/host indices,
 consult authored rows, retain their owner and evaluate owning expressions before
 borrowed operands expire. Corner UV/normal rows remain independent of positions;

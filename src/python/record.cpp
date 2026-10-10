@@ -7,8 +7,10 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <span>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <variant>
 
 namespace meshvale::geometry::python {
@@ -57,6 +59,17 @@ inline std::vector<T> read_buffer(nb::handle source, std::string_view formats) {
   if (!result.empty())
     std::memcpy(result.data(), buffer.buf,
                 static_cast<std::size_t>(buffer.len));
+  return result;
+}
+
+template <typename T>
+ScalarBuffer<T> ReadScalarBuffer(nb::handle source, std::string_view formats) {
+  Buffer owner(source);
+  const auto& buffer = owner.get();
+  (void)buffer_count<T>(buffer, formats);
+  ScalarBuffer<T> result;
+  result.AssignBytes({static_cast<const std::byte*>(buffer.buf),
+                      static_cast<std::size_t>(buffer.len)});
   return result;
 }
 
@@ -127,19 +140,19 @@ Attribute read_attribute(nb::handle source) {
   const auto type = text(record["scalar_type"]);
   const auto values = record["values"];
   if (type == "float32")
-    result.values = read_buffer<float>(values, "f");
+    result.values = ReadScalarBuffer<float>(values, "f");
   else if (type == "float64")
-    result.values = read_buffer<double>(values, "d");
+    result.values = ReadScalarBuffer<double>(values, "d");
   else if (type == "int32")
-    result.values = read_buffer<std::int32_t>(values, "il");
+    result.values = ReadScalarBuffer<std::int32_t>(values, "il");
   else if (type == "uint8")
-    result.values = read_buffer<std::uint8_t>(values, "B");
+    result.values = ReadScalarBuffer<std::uint8_t>(values, "B");
   else if (type == "uint16")
-    result.values = read_buffer<std::uint16_t>(values, "H");
+    result.values = ReadScalarBuffer<std::uint16_t>(values, "H");
   else if (type == "uint32")
-    result.values = read_buffer<std::uint32_t>(values, "IL");
+    result.values = ReadScalarBuffer<std::uint32_t>(values, "IL");
   else if (type == "uint64")
-    result.values = read_buffer<std::uint64_t>(values, "QL");
+    result.values = ReadScalarBuffer<std::uint64_t>(values, "QL");
   else
     throw nb::value_error("unsupported attribute scalar_type");
   if (!record["offsets"].is_none())
@@ -223,7 +236,9 @@ nb::dict to_record(const Mesh& mesh) {
     row["scalar_type"] = types[attribute.values.index()];
     row["values"] = std::visit(
         [&](const auto& values) {
-          return write_buffer(values, formats[attribute.values.index()]);
+          using T = typename std::decay_t<decltype(values)>::value_type;
+          return WriteBufferData(values.data(), values.size(), sizeof(T),
+                                 formats[attribute.values.index()]);
         },
         attribute.values);
     row["offsets"] =

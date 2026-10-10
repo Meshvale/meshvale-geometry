@@ -123,7 +123,7 @@ normal lease paths, concurrent mixed reservations and existing algorithm
 contention. Sanitizer coverage requires executing that build; a configured job
 or functional concurrency test is not race-detector evidence.
 
-The default native build and address/undefined-behavior sanitizer job run nine
+The default native build and address/undefined-behavior sanitizer job run ten
 test suites. Two separate allocation-failure executables replace ordinary
 throwing scalar/array `new` and sized/unsized `delete`; their replacement bodies
 remain in a separate compilation unit without CMake interprocedural
@@ -133,7 +133,7 @@ paths. Aligned allocation and thread/exception runtime are outside these
 focused probes.
 
 ThreadSanitizer owns its own allocation interceptors. Its job explicitly sets
-`MESHVALE_GEOMETRY_ALLOCATION_PROBE=OFF`, runs seven suites and retains all shared
+`MESHVALE_GEOMETRY_ALLOCATION_PROBE=OFF`, runs eight suites and retains all shared
 lease state/lifetime, worker, algorithm-contention and concurrency cases. The
 replacement-allocation probes do not run under ThreadSanitizer; they remain
 enabled in ordinary and address/undefined-behavior builds. The
