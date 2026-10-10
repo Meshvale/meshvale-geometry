@@ -202,8 +202,13 @@ void PositionOwnershipAndBytes() {
   require(rejected && moved.size() == 2, "shape overflow did not roll back");
   moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
   require(exported == bits, "failed mutation changed raw bytes");
-  moved = std::move(moved);
-  moved = moved;
+  auto* alias = &moved;
+  moved = std::move(*alias);
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "self move assignment changed raw bytes");
+  moved = *alias;
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "self copy assignment changed raw bytes");
   require(moved.size() == 2, "self assignment lost ownership");
   moved.clear();
   moved.Append({4, 5, 6});
