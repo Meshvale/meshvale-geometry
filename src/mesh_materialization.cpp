@@ -3,6 +3,7 @@
 #include <meshvale/geometry/execution.h>
 #include <meshvale/geometry/materialization.h>
 #include <meshvale/geometry/position_buffer.h>
+#include <meshvale/geometry/vector_buffer.h>
 
 #include <algorithm>
 #include <array>
@@ -77,6 +78,8 @@ MaterializedFaceSelection Access::MakeSelection(
   return MaterializedFaceSelection(std::move(state));
 }
 namespace {
+constexpr std::size_t kCornersPerTriangle = 3;
+constexpr index_t kMinimumFaceCorners = 3;
 struct ExpectedFailure {
   MaterializationStatus status;
   MaterializationDiagnostic diagnostic;
@@ -183,10 +186,10 @@ InputCounts ValidateInput(const MeshMaterializationInput& input,
           counts.corners = topology.corner_vertices.size();
         } else if constexpr (std::is_same_v<Topology, TriangleTopologyInput>) {
           counts.corners = topology.corner_vertices.size();
-          if (counts.corners % kVector3Components != 0)
+          if (counts.corners % kCornersPerTriangle != 0)
             Fail(MaterializationStatus::kInvalidTransport,
                  MaterializationDiagnosticCode::kTriangleExtent);
-          counts.faces = counts.corners / kVector3Components;
+          counts.faces = counts.corners / kCornersPerTriangle;
           counts.face_offsets = CheckedSum(counts.faces, 1);
         }
       },
@@ -660,7 +663,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
               const auto previous = job.mesh.face_offsets[i - 1];
               if (value < previous)
                 sink.Add(StorageIssueCode::kFaceOffsetOrder, {}, i);
-              else if (value - previous < kVector3Components)
+              else if (value - previous < kMinimumFaceCorners)
                 sink.Add(StorageIssueCode::kFaceTooShort, {}, i - 1);
             }
           }
@@ -1104,7 +1107,7 @@ MeshMaterializationResult TestMaterializeMesh(
                             job.session.work.cancellation_block_scalars ==
                         0)
                       job.session.allocation.Checkpoint();
-                    job.offsets[i] = i * kVector3Components;
+                    job.offsets[i] = i * kCornersPerTriangle;
                   }
                 },
                 &job);
