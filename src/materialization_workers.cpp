@@ -9,6 +9,7 @@
 #include <exception>
 #include <stop_token>
 #include <system_error>
+#include <type_traits>
 #include <vector>
 
 #include "materialization_allocation.h"
@@ -44,20 +45,37 @@ void JoinDefault(std::uintptr_t handle, void*) noexcept {
   if (!CloseHandle(native)) std::terminate();
 }
 #else
+template <class Thread>
+std::uintptr_t EncodeThreadHandle(Thread thread) noexcept {
+  static_assert(std::is_pointer_v<Thread> || std::is_integral_v<Thread>);
+  static_assert(sizeof(Thread) <= sizeof(std::uintptr_t));
+  if constexpr (std::is_pointer_v<Thread>)
+    return reinterpret_cast<std::uintptr_t>(thread);
+  else
+    return static_cast<std::uintptr_t>(thread);
+}
+template <class Thread>
+Thread DecodeThreadHandle(std::uintptr_t handle) noexcept {
+  static_assert(std::is_pointer_v<Thread> || std::is_integral_v<Thread>);
+  static_assert(sizeof(Thread) <= sizeof(std::uintptr_t));
+  if constexpr (std::is_pointer_v<Thread>)
+    return reinterpret_cast<Thread>(handle);
+  else
+    return static_cast<Thread>(handle);
+}
 void* NativeEntry(void* argument) noexcept {
   auto& record = *static_cast<NativeWorkerRecord*>(argument);
   record.entry(record);
   return nullptr;
 }
 std::uintptr_t LaunchDefault(NativeWorkerRecord* record, void*) {
-  static_assert(sizeof(pthread_t) <= sizeof(std::uintptr_t));
   pthread_t thread;
   const auto error = pthread_create(&thread, nullptr, NativeEntry, record);
   if (error != 0) throw std::system_error(error, std::generic_category());
-  return static_cast<std::uintptr_t>(thread);
+  return EncodeThreadHandle(thread);
 }
 void JoinDefault(std::uintptr_t handle, void*) noexcept {
-  if (pthread_join(static_cast<pthread_t>(handle), nullptr) != 0)
+  if (pthread_join(DecodeThreadHandle<pthread_t>(handle), nullptr) != 0)
     std::terminate();
 }
 #endif
