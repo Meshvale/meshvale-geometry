@@ -632,6 +632,59 @@ void CheckPreCanceled(const Fixture& fixture) {
   Released(context);
 }
 
+void CheckSharedExecutionContext(const Fixture& fixture) {
+  std::optional<geo::ExecutionContext> shared;
+  std::optional<geo::PayloadLease> retained_charge;
+  {
+    auto original = Context();
+    auto source = fixture.Capture(original, SerialWork());
+    Successful(source);
+    const auto source_bytes = original.ActiveTrackedPayload();
+    static_assert(noexcept(source.mesh->ShareExecutionContext()));
+    shared.emplace(source.mesh->ShareExecutionContext());
+    Require(geo::SharesExecutionBudget(original, *shared),
+            "Recovered context uses a different ledger");
+    auto foreign = Context();
+    Require(!geo::SharesExecutionBudget(foreign, *shared),
+            "Recovered context aliases an unrelated ledger");
+    Require(shared->ActiveTrackedPayload() == source_bytes &&
+                shared->ActiveWorkers() == 0,
+            "Sharing context changed existing reservations");
+    auto request = geo::TryReservePayload(*shared, kForeignPayloadBytes);
+    Require(request.status == geo::ReservationStatus::kAccepted,
+            "Recovered context cannot reserve payload");
+    retained_charge.emplace(std::move(request.lease));
+    Require(
+        original.ActiveTrackedPayload() == source_bytes + kForeignPayloadBytes,
+        "Recovered context reservation bypassed the original ledger");
+    auto workers = geo::TryReserveWorkers(*shared, kWorkerBudget);
+    Require(workers.Count() == kWorkerBudget &&
+                original.ActiveWorkers() == kWorkerBudget,
+            "Recovered worker reservation bypassed the original ledger");
+    workers.Reset();
+    std::stop_source stopped;
+    stopped.request_stop();
+    auto canceled = geo::TryReservePayload(*shared, kForeignPayloadBytes,
+                                           stopped.get_token());
+    Require(canceled.status == geo::ReservationStatus::kCanceled,
+            "Recovered context ignored the supplied operation token");
+  }
+  Require(shared->ActiveTrackedPayload() == kForeignPayloadBytes &&
+              shared->ActiveWorkers() == 0,
+          "Context copy retained mesh storage or lost its independent lease");
+  auto remaining = geo::TryReservePayload(
+      *shared, kLedgerBudgetBytes - kForeignPayloadBytes);
+  Require(remaining.status == geo::ReservationStatus::kAccepted,
+          "Fresh token inherited an earlier cancellation");
+  constexpr std::size_t kOverBudgetRequestBytes = 1;
+  auto excess = geo::TryReservePayload(*shared, kOverBudgetRequestBytes);
+  Require(excess.status == geo::ReservationStatus::kBudgetExceeded,
+          "Recovered context lost its configured payload budget");
+  remaining.lease.Reset();
+  retained_charge.reset();
+  Released(*shared);
+}
+
 void CheckConcurrentCancellation() {
   Fixture fixture(kCancellationLongRowScalars);
   std::uint64_t canceled = 0, committed_races = 0, observed_slot_windows = 0;
@@ -691,6 +744,7 @@ int main() {
     CheckSubsequentCapEdges(fixture, SubsequentOperation::kSelect);
     CheckOwnerAndTokenLifetime(fixture);
     CheckFullyDestroyedContext(fixture);
+    CheckSharedExecutionContext(fixture);
     CheckWorkerContention(fixture);
     CheckPreCanceled(fixture);
     CheckSerialParallel(fixture);

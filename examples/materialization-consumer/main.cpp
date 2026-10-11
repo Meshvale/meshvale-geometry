@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/attributes.h>
 #include <meshvale/geometry/editable_mesh.h>
+#include <meshvale/geometry/execution.h>
 #include <meshvale/geometry/materialization.h>
 
 #include <array>
@@ -90,6 +91,10 @@ void InspectAndSelect() {
   ExecutionContext context(options);
   {
     const auto source = Capture(context);
+    const auto shared_context = source.ShareExecutionContext();
+    Require(SharesExecutionBudget(context, shared_context));
+    Require(context.ActiveTrackedPayload() ==
+            shared_context.ActiveTrackedPayload());
     const auto inspected =
         InspectMaterializedMesh(source, kInspectionLimits, kWork);
     Require(inspected.status == MaterializationStatus::kSuccess &&

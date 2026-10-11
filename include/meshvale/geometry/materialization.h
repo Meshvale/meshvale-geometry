@@ -189,6 +189,10 @@ class MaterializedMesh {
   MaterializedMesh& operator=(const MaterializedMesh&) noexcept;
   ~MaterializedMesh() noexcept;
   [[nodiscard]] MeshReadView View() const noexcept;
+  // Allocation-free copy of the retained execution ledger and policy. It owns
+  // no mesh storage or cancellation token and remains valid after this mesh
+  // and the original context are destroyed. Use a fresh token for each call.
+  [[nodiscard]] ExecutionContext ShareExecutionContext() const noexcept;
   [[nodiscard]] std::uint64_t NewRequestedBytes() const noexcept;
 
  private:
