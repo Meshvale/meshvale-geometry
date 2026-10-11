@@ -1366,6 +1366,9 @@ MeshReadView MaterializedMesh::View() const noexcept {
           state_->face_offsets.Values(), state_->corner_vertices.Values(),
           state_->views};
 }
+ExecutionContext MaterializedMesh::ShareExecutionContext() const noexcept {
+  return state_->context;
+}
 std::uint64_t MaterializedMesh::NewRequestedBytes() const noexcept {
   return state_->allocation.OperationActiveBytes();
 }

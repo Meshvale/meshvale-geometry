@@ -27,6 +27,11 @@
 
 ### Added
 
+- `MaterializedMesh::ShareExecutionContext()` shares the retained allocation and
+  worker budget with downstream operations, without allocating or retaining mesh
+  payloads or an earlier cancellation token. Rebuild the compiled materialization
+  target and native consumers to use the new member.
+
 - Immutable full-storage capture, raw inspection and face selection through
   `materialization.h` and `meshvale::materialization`, with complete typed
   attributes, ordered metadata, shared allocation/worker admission and retained

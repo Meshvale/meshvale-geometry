@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-MATERIALIZATION-001 |
-| Version | 0.5.0 |
+| Version | 0.6.0 |
 | Status | Development candidate with native runtime and installed target; Windows allocation profile qualified |
 | Owner | Geometry |
 
@@ -192,6 +192,19 @@ Input arrays, the original `ExecutionContext` and an earlier stop source may be
 destroyed after a successful call. Retained storage owns the context needed for
 later inspection and selection. Cancellation of an earlier call cannot cancel a
 new operation's fresh token.
+
+`MaterializedMesh::ShareExecutionContext()` returns an allocation-free owning
+copy of that retained execution ledger and its configured policy. Downstream
+operations can reserve their own payload/worker leases on the source's actual
+budget without importing Geometry implementation headers or accepting a foreign
+caller context. `SharesExecutionBudget` identifies the returned copy as sharing
+the original ledger. The copy remains valid after the original context and mesh
+are destroyed; it retains neither mesh storage nor an earlier cancellation token.
+Sharing the context does not reserve bytes/workers or change existing charges.
+Consumers remain responsible for charging actual requests before allocation,
+freeing storage before releasing leases, joining workers before releasing slots,
+and using a fresh operation token. It does not create a new operation cap or
+make an unaccounted allocation accounted.
 
 Every structural, descriptor, string, metadata, diagnostic, correspondence,
 scratch, owner/control and rebound request is admitted before construction,
