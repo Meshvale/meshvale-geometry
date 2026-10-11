@@ -10,6 +10,8 @@
 #include <utility>
 
 #include "eigen_types.h"
+#include "numeric_buffer_internal.h"
+#include "numeric_request_internal.h"
 
 namespace meshvale::geometry {
 namespace {
@@ -57,6 +59,45 @@ struct ScalarBuffer<T>::Impl {
   eigen_types::Vector<T> values;
   std::size_t size = 0;
 };
+
+bool numeric_detail::QualifiedRequestProfile() noexcept {
+#if defined(_WIN64) && defined(_MSC_VER) && EIGEN_WORLD_VERSION == 3 && \
+    EIGEN_MAJOR_VERSION == 4 && EIGEN_MINOR_VERSION == 1 &&             \
+    EIGEN_DEFAULT_ALIGN_BYTES == 16 && EIGEN_MALLOC_ALREADY_ALIGNED == 1
+  return true;
+#else
+  return false;
+#endif
+}
+std::size_t numeric_detail::NumericalRequestBytes(std::size_t payload) {
+  if (payload == 0) return 0;
+#if EIGEN_DEFAULT_ALIGN_BYTES == 0 || EIGEN_MALLOC_ALREADY_ALIGNED
+  return payload;
+#else
+  constexpr std::size_t kEigenAllocationPadding = EIGEN_DEFAULT_ALIGN_BYTES;
+  if (payload >
+      std::numeric_limits<std::size_t>::max() - kEigenAllocationPadding)
+    throw std::length_error("numeric allocation request exceeds host extent");
+  return payload + kEigenAllocationPadding;
+#endif
+}
+template <SupportedAttributeScalar T>
+numeric_detail::RequestPlan numeric_detail::Access::ScalarPlan(
+    std::size_t count) {
+  CheckCount<T>(count);
+  return {count == 0 ? 0 : sizeof(typename ScalarBuffer<T>::Impl),
+          NumericalRequestBytes(count * sizeof(T)), QualifiedRequestProfile()};
+}
+template <SupportedAttributeScalar T>
+ScalarBuffer<T> numeric_detail::Access::AllocateScalars(std::size_t count) {
+  CheckCount<T>(count);
+  ScalarBuffer<T> result;
+  if (count != 0) {
+    result.impl_ = std::make_unique<typename ScalarBuffer<T>::Impl>(count);
+    result.impl_->size = count;
+  }
+  return result;
+}
 
 template <SupportedAttributeScalar T>
 ScalarBuffer<T>::ScalarBuffer() noexcept = default;
@@ -285,4 +326,33 @@ template class ScalarBuffer<std::uint8_t>;
 template class ScalarBuffer<std::uint16_t>;
 template class ScalarBuffer<std::uint32_t>;
 template class ScalarBuffer<std::uint64_t>;
+
+template numeric_detail::RequestPlan numeric_detail::Access::ScalarPlan<float>(
+    std::size_t);
+template numeric_detail::RequestPlan numeric_detail::Access::ScalarPlan<double>(
+    std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::int32_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint8_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint16_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint32_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint64_t>(std::size_t);
+template ScalarBuffer<float> numeric_detail::Access::AllocateScalars<float>(
+    std::size_t);
+template ScalarBuffer<double> numeric_detail::Access::AllocateScalars<double>(
+    std::size_t);
+template ScalarBuffer<std::int32_t>
+numeric_detail::Access::AllocateScalars<std::int32_t>(std::size_t);
+template ScalarBuffer<std::uint8_t>
+numeric_detail::Access::AllocateScalars<std::uint8_t>(std::size_t);
+template ScalarBuffer<std::uint16_t>
+numeric_detail::Access::AllocateScalars<std::uint16_t>(std::size_t);
+template ScalarBuffer<std::uint32_t>
+numeric_detail::Access::AllocateScalars<std::uint32_t>(std::size_t);
+template ScalarBuffer<std::uint64_t>
+numeric_detail::Access::AllocateScalars<std::uint64_t>(std::size_t);
 }  // namespace meshvale::geometry

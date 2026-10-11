@@ -11,6 +11,9 @@
 #include <vector>
 
 namespace meshvale::geometry {
+namespace numeric_detail {
+struct Access;
+}
 
 template <class T>
 concept SupportedAttributeScalar =
@@ -88,6 +91,7 @@ class ScalarBuffer {
   [[nodiscard]] bool operator==(const ScalarBuffer& other) const;
 
  private:
+  friend struct numeric_detail::Access;
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };
