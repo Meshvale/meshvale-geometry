@@ -198,11 +198,17 @@ if(BUILD_TESTING)
   add_executable(meshvale_attribute_numerics_tests tests/attribute_numerics.cpp)
   target_link_libraries(meshvale_attribute_numerics_tests PRIVATE meshvale::attribute_numerics)
   add_test(NAME checked_attribute_numerics COMMAND meshvale_attribute_numerics_tests)
+  # Bound execution-test deadlocks while retaining flushed phase diagnostics.
+  set(_MESHVALE_EXECUTION_TEST_TIMEOUT_SECONDS 120)
+  set_tests_properties(checked_attribute_numerics PROPERTIES
+    TIMEOUT "${_MESHVALE_EXECUTION_TEST_TIMEOUT_SECONDS}")
   if(MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE STREQUAL "qualified")
     add_executable(meshvale_materialization_tests tests/materialization.cpp)
     target_include_directories(meshvale_materialization_tests PRIVATE src)
     target_link_libraries(meshvale_materialization_tests PRIVATE meshvale::materialization)
     add_test(NAME charged_materialization COMMAND meshvale_materialization_tests)
+    set_tests_properties(charged_materialization PROPERTIES
+      TIMEOUT "${_MESHVALE_EXECUTION_TEST_TIMEOUT_SECONDS}")
     add_executable(meshvale_materialization_semantic_tests
       tests/materialization_semantics/main.cpp
       tests/materialization_semantics/fixture_support.cpp

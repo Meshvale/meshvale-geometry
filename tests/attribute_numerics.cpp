@@ -5,10 +5,14 @@
 #include <atomic>
 #include <bit>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <iostream>
+#include <latch>
 #include <limits>
 #include <stdexcept>
+#include <stop_token>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -16,6 +20,62 @@
 
 using namespace meshvale::geometry;
 namespace {
+constexpr std::string_view kSuiteName = "checked_attribute_numerics";
+constexpr std::string_view kPhaseField = " phase=";
+constexpr std::string_view kStateField = " state=";
+constexpr std::string_view kBeginState = "begin";
+constexpr std::string_view kEndState = "end";
+constexpr std::string_view kMainPhase = "main-entry";
+constexpr std::string_view kFloatShapesPhase = "float-shapes";
+constexpr std::string_view kDoubleShapesPhase = "double-shapes";
+constexpr std::string_view kInt32ShapesPhase = "int32-shapes";
+constexpr std::string_view kUint8ShapesPhase = "uint8-shapes";
+constexpr std::string_view kUint16ShapesPhase = "uint16-shapes";
+constexpr std::string_view kUint32ShapesPhase = "uint32-shapes";
+constexpr std::string_view kUint64ShapesPhase = "uint64-shapes";
+constexpr std::string_view kFloatingBitsPhase = "floating-bits-and-domains";
+constexpr std::string_view kIntegerChecksPhase = "integer-checks";
+constexpr std::string_view kShapeLifetimePhase = "shape-and-lifetime";
+constexpr std::string_view kBudgetWorkersPhase = "budget-and-workers";
+constexpr std::string_view kWatcherCleanupPhase = "watcher-exception-cleanup";
+constexpr std::string_view kWatcherStartedPhase =
+    "cancellation-watcher-started";
+constexpr std::string_view kWatchedReductionPhase = "watched-reduction";
+constexpr std::string_view kWatcherJoinPhase = "cancellation-watcher-join";
+constexpr std::size_t kCancellationWorkerCount = 2;
+
+void PrintPhase(std::string_view phase, std::string_view state) {
+  std::cout << kSuiteName << kPhaseField << phase << kStateField << state
+            << '\n'
+            << std::flush;
+}
+void RunPhase(std::string_view phase, void (*run)()) {
+  PrintPhase(phase, kBeginState);
+  run();
+  PrintPhase(phase, kEndState);
+}
+struct CancellationWatcherState {
+  std::latch started{1};
+  std::atomic<bool> finished = false;
+  std::atomic<bool> observed = false;
+  std::atomic<bool> exited = false;
+};
+std::jthread StartCancellationWatcher(const ExecutionContext& execution,
+                                      std::stop_source& cancellation,
+                                      CancellationWatcherState& state) {
+  return std::jthread([&](std::stop_token watcher_stop) {
+    state.started.count_down();
+    while (!watcher_stop.stop_requested() && !state.finished.load()) {
+      if (execution.ActiveWorkers() == kCancellationWorkerCount) {
+        state.observed = true;
+        cancellation.request_stop();
+        break;
+      }
+      std::this_thread::yield();
+    }
+    state.exited = true;
+  });
+}
 void Require(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
 }
@@ -309,47 +369,68 @@ void BudgetAndWorkers() {
   large.name = "large";
   large.components = 32;
   large.values = std::vector<double>(1024 * 1024, 0.25);
-  ExecutionContext during({.worker_budget = 2});
+  ExecutionContext during({.worker_budget = kCancellationWorkerCount});
   std::stop_source later;
-  std::atomic<bool> finished = false;
-  std::atomic<bool> observed = false;
-  std::jthread canceler([&] {
-    while (!finished.load()) {
-      if (during.ActiveWorkers() == 2) {
-        observed = true;
-        later.request_stop();
-        return;
-      }
-      std::this_thread::yield();
-    }
-  });
+  CancellationWatcherState watcher;
+  PrintPhase(kWatcherStartedPhase, kBeginState);
+  auto canceler = StartCancellationWatcher(during, later, watcher);
+  watcher.started.wait();
+  PrintPhase(kWatcherStartedPhase, kEndState);
+  PrintPhase(kWatchedReductionPhase, kBeginState);
   auto interrupted = ComputeAttributeRowSquaredNorms(large, 32768, {}, during,
                                                      later.get_token());
-  finished = true;
+  PrintPhase(kWatchedReductionPhase, kEndState);
+  watcher.finished = true;
+  PrintPhase(kWatcherJoinPhase, kBeginState);
   canceler.join();
-  Require(observed &&
+  PrintPhase(kWatcherJoinPhase, kEndState);
+  Require(watcher.observed && watcher.exited &&
               interrupted.Status() == AttributeReductionStatus::kCanceled &&
               interrupted.Presence().empty() && during.ActiveWorkers() == 0 &&
               during.ActiveTrackedPayload() == 0,
           "in-worker cancellation leaked or published");
 }
+void WatcherExceptionCleanup() {
+  struct InjectedWatcherFailure {};
+  ExecutionContext execution({.worker_budget = kCancellationWorkerCount});
+  std::stop_source cancellation;
+  CancellationWatcherState watcher;
+  bool unwound = false;
+  try {
+    auto canceler = StartCancellationWatcher(execution, cancellation, watcher);
+    watcher.started.wait();
+    // Exercise the same watcher before any reduction publishes `finished`.
+    // jthread destruction must stop and join it while this exception unwinds.
+    throw InjectedWatcherFailure{};
+  } catch (const InjectedWatcherFailure&) {
+    unwound = true;
+  }
+  Require(unwound && watcher.exited && !watcher.finished && !watcher.observed &&
+              !cancellation.stop_requested() &&
+              execution.ActiveWorkers() == 0 &&
+              execution.ActiveTrackedPayload() == 0,
+          "exception unwinding did not stop and join the cancellation watcher");
+}
 }  // namespace
 int main() {
+  PrintPhase(kMainPhase, kBeginState);
   try {
-    AllShapes<float>();
-    AllShapes<double>();
-    AllShapes<std::int32_t>();
-    AllShapes<std::uint8_t>();
-    AllShapes<std::uint16_t>();
-    AllShapes<std::uint32_t>();
-    AllShapes<std::uint64_t>();
-    FloatingBitsAndDomains();
-    IntegerChecks();
-    ShapeAndLifetime();
-    BudgetAndWorkers();
+    RunPhase(kFloatShapesPhase, AllShapes<float>);
+    RunPhase(kDoubleShapesPhase, AllShapes<double>);
+    RunPhase(kInt32ShapesPhase, AllShapes<std::int32_t>);
+    RunPhase(kUint8ShapesPhase, AllShapes<std::uint8_t>);
+    RunPhase(kUint16ShapesPhase, AllShapes<std::uint16_t>);
+    RunPhase(kUint32ShapesPhase, AllShapes<std::uint32_t>);
+    RunPhase(kUint64ShapesPhase, AllShapes<std::uint64_t>);
+    RunPhase(kFloatingBitsPhase, FloatingBitsAndDomains);
+    RunPhase(kIntegerChecksPhase, IntegerChecks);
+    RunPhase(kShapeLifetimePhase, ShapeAndLifetime);
+    RunPhase(kWatcherCleanupPhase, WatcherExceptionCleanup);
+    RunPhase(kBudgetWorkersPhase, BudgetAndWorkers);
     std::cout << "Checked attribute reductions: all seven scalar types, "
                  "dense/ragged/missing/corner rows, bits, owned lifetime, full "
                  "budgets and joined workers passed\n";
+    PrintPhase(kMainPhase, kEndState);
     return 0;
   } catch (const std::exception& e) {
     std::cerr << e.what() << '\n';
