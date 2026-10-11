@@ -6,10 +6,12 @@ import io
 import json
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import sys
 import tarfile
+from urllib.parse import urlsplit
 
 PROFILES = ("native", "asan-ubsan")
 SANITIZER_FLAGS = "-fsanitize=address,undefined -fno-omit-frame-pointer"
@@ -49,12 +51,24 @@ def main():
         (output / name).write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
 
     def run(name, arguments, cwd=None, timeout=COMMAND_TIMEOUT_SECONDS):
-        with (output / (name + ".stdout")).open("w", encoding="utf-8") as stdout, \
-             (output / (name + ".stderr")).open("w", encoding="utf-8") as stderr:
-            result = subprocess.run([str(value) for value in arguments], cwd=cwd or output,
-                                    stdout=stdout, stderr=stderr, timeout=timeout)
-        commands.append({"name": name, "arguments": [str(value) for value in arguments],
-                         "exit_code": result.returncode})
+        command = {"name": name, "arguments": [str(value) for value in arguments],
+                   "timeout_seconds": timeout, "outcome": "started"}
+        commands.append(command)
+        write_json("commands.json", commands)
+        try:
+            with (output / (name + ".stdout")).open("w", encoding="utf-8") as stdout, \
+                 (output / (name + ".stderr")).open("w", encoding="utf-8") as stderr:
+                result = subprocess.run(command["arguments"], cwd=cwd or output,
+                                        stdout=stdout, stderr=stderr, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            command.update(outcome="timeout", error=str(error))
+            write_json("commands.json", commands)
+            raise
+        except OSError as error:
+            command.update(outcome="launch-error", error=str(error))
+            write_json("commands.json", commands)
+            raise
+        command.update(outcome="completed", exit_code=result.returncode)
         write_json("commands.json", commands)
         print(f"{args.profile} {name}: {result.returncode}", flush=True)
         result.check_returncode()
@@ -90,13 +104,30 @@ def main():
     cmake = tools["cmake"]
     build = output / "producer-build"
     prefix = output / "producer-prefix"
+    dependency_workspace = output / "dependency-workspace"
     flags = ["-DCMAKE_BUILD_TYPE=Debug", "-DCMAKE_CXX_COMPILER=" + tools["clang++"],
              "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON", "-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF"]
     if args.profile == "asan-ubsan":
         flags += ["-DCMAKE_CXX_FLAGS=" + SANITIZER_FLAGS,
                   "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"]
     run("producer-configure", [cmake, "-S", source, "-B", build, "-G", "Ninja",
-                              *flags, "-DBUILD_TESTING=OFF"])
+        *flags, "-DBUILD_TESTING=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON",
+        "-DFETCHCONTENT_BASE_DIR=" + str(dependency_workspace)])
+    dependency_owner = source / "cmake/MeshvaleEigen.cmake"
+    dependency_contract = dependency_owner.read_text(encoding="utf-8")
+    dependency_url = re.search(r"URL\s+(https://\S+)", dependency_contract).group(1)
+    dependency_hash = re.search(r"URL_HASH\s+SHA256=([0-9a-f]{64})",
+                                dependency_contract).group(1)
+    dependency_archives = list(dependency_workspace.rglob(Path(urlsplit(dependency_url).path).name))
+    assert len(dependency_archives) == 1
+    dependency_archive = dependency_archives[0]
+    assert digest(dependency_archive) == dependency_hash
+    dependency_source = dependency_workspace / "meshvale_eigen-src"
+    assert (dependency_source / "Eigen/Core").is_file()
+    dependency_files = manifest(dependency_source)
+    write_json("dependency-inputs.json", {"owner_sha256": digest(dependency_owner),
+        "url": dependency_url, "archive_path": dependency_archive.relative_to(output).as_posix(),
+        "archive_sha256": digest(dependency_archive), "files": dependency_files})
     run("producer-build", [cmake, "--build", build, "--parallel", BUILD_WORKERS])
     run("producer-install", [cmake, "--install", build, "--prefix", prefix])
     prefix_files = manifest(prefix)
@@ -106,6 +137,8 @@ def main():
     run("owner-profile", [sys.executable, observer_source / "capture-profile.py",
         "--source", source, "--compile-commands", build / "compile_commands.json",
         "--revision", revision, "--profile", args.profile, "--output", owner_profile])
+    for owner in json.loads((owner_profile / "profile.json").read_text(encoding="utf-8"))["owners"].values():
+        assert str(dependency_source) in owner["original_arguments"]
     observer_build = output / "observer-build"
     run("observer-configure", [cmake, "-S", observer_source, "-B", observer_build, "-G",
         "Ninja", *flags, "-DCMAKE_PREFIX_PATH=" + str(prefix),
@@ -122,6 +155,7 @@ def main():
         output / "observer-execute.stdout", owner_profile / "profile.json",
         output / "request-report.json"])
     assert manifest(source) == source_files and manifest(prefix) == prefix_files
+    assert manifest(dependency_source) == dependency_files and digest(dependency_archive) == dependency_hash
     files = [{"path": path.relative_to(output).as_posix(), "bytes": path.stat().st_size,
               "sha256": digest(path)} for path in sorted(output.rglob("*"))
              if path.is_file() and "source" not in path.relative_to(output).parts
