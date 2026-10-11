@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/execution.h>
+#include <meshvale/geometry/scalar_buffer.h>
 
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <exception>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -17,14 +20,21 @@ namespace {
 using namespace meshvale::geometry;
 namespace allocation = materialization_detail;
 constexpr std::size_t kRequestBudget = 1024 * 1024;
+constexpr std::size_t kWorkerBudget = 2;
+constexpr std::size_t kMinimumParallelVertices = 1;
 constexpr std::size_t kScalarCount = 7;
 constexpr std::size_t kPositionRows = 3;
+ExecutionOptions TestExecutionOptions() {
+  return {.worker_budget = kWorkerBudget,
+          .minimum_parallel_vertices = kMinimumParallelVertices,
+          .tracked_payload_budget_bytes = kRequestBudget};
+}
 void Require(bool condition, const char* message) {
   if (!condition) throw std::runtime_error(message);
 }
 template <SupportedAttributeScalar T>
 void ScalarCase() {
-  ExecutionContext execution({2, 1, kRequestBudget});
+  ExecutionContext execution(TestExecutionOptions());
   {
     auto operation = allocation::AllocationContext(execution, {})
                          .WithRequestLimit(kRequestBudget);
@@ -56,7 +66,7 @@ void ScalarCase() {
   Require(execution.ActiveTrackedPayload() == 0, "operation seed leaked");
 }
 void PositionCase() {
-  ExecutionContext execution({2, 1, kRequestBudget});
+  ExecutionContext execution(TestExecutionOptions());
   {
     auto operation = allocation::AllocationContext(execution, {})
                          .WithRequestLimit(kRequestBudget);
@@ -82,7 +92,7 @@ void PositionCase() {
   Require(execution.ActiveTrackedPayload() == 0, "position requests leaked");
 }
 void AdmissionCase() {
-  ExecutionContext execution({2, 1, kRequestBudget});
+  ExecutionContext execution(TestExecutionOptions());
   const auto plan = numeric_detail::Access::ScalarPlan<double>(kScalarCount);
   const auto bytes = plan.implementation_bytes + plan.numerical_bytes;
   std::size_t seed = 0;

@@ -61,10 +61,18 @@ struct ScalarBuffer<T>::Impl {
 };
 
 bool numeric_detail::QualifiedRequestProfile() noexcept {
-#if defined(_WIN64) && defined(_MSC_VER) && EIGEN_WORLD_VERSION == 3 && \
-    EIGEN_MAJOR_VERSION == 4 && EIGEN_MINOR_VERSION == 1 &&             \
-    EIGEN_DEFAULT_ALIGN_BYTES == 16 && EIGEN_MALLOC_ALREADY_ALIGNED == 1
-  return true;
+#if defined(_WIN64) && defined(_MSC_VER)
+  // The observed original request cohort is pinned Eigen 3.4.1 on MSVC x64,
+  // with its plain default-aligned route. Other profiles remain unqualified.
+  constexpr int kQualifiedEigenWorldVersion = 3;
+  constexpr int kQualifiedEigenMajorVersion = 4;
+  constexpr int kQualifiedEigenMinorVersion = 1;
+  constexpr int kQualifiedDefaultAlignment = 16;
+  return EIGEN_WORLD_VERSION == kQualifiedEigenWorldVersion &&
+         EIGEN_MAJOR_VERSION == kQualifiedEigenMajorVersion &&
+         EIGEN_MINOR_VERSION == kQualifiedEigenMinorVersion &&
+         EIGEN_DEFAULT_ALIGN_BYTES == kQualifiedDefaultAlignment &&
+         EIGEN_MALLOC_ALREADY_ALIGNED;
 #else
   return false;
 #endif
