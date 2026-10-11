@@ -4,9 +4,12 @@ set(_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED 0)
 set(_MESHVALE_NUMERIC_PROFILE_NATIVE 1)
 set(_MESHVALE_NUMERIC_PROFILE_ASAN_UBSAN 2)
 set(_MESHVALE_NUMERIC_PROFILE_TSAN 3)
+set(_MESHVALE_NUMERIC_PHASE_COMPILE "COMPILE")
+set(_MESHVALE_NUMERIC_PHASE_LINK "LINK")
 
 function(meshvale_numeric_classify_tokens result phase)
-  if(NOT phase STREQUAL "COMPILE" AND NOT phase STREQUAL "LINK")
+  if(NOT phase STREQUAL "${_MESHVALE_NUMERIC_PHASE_COMPILE}" AND
+      NOT phase STREQUAL "${_MESHVALE_NUMERIC_PHASE_LINK}")
     set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
     return()
   endif()
@@ -28,7 +31,8 @@ function(meshvale_numeric_classify_tokens result phase)
         return()
       endif()
       set(profile "${_MESHVALE_NUMERIC_PROFILE_TSAN}")
-    elseif(option STREQUAL "-O1" AND phase STREQUAL "COMPILE")
+    elseif(option STREQUAL "-O1" AND
+        phase STREQUAL "${_MESHVALE_NUMERIC_PHASE_COMPILE}")
       set(optimized TRUE)
     elseif(option STREQUAL "-g")
       set(debug TRUE)
@@ -42,7 +46,7 @@ function(meshvale_numeric_classify_tokens result phase)
     endif()
   endforeach()
   if((profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}" AND
-      phase STREQUAL "COMPILE" AND
+      phase STREQUAL "${_MESHVALE_NUMERIC_PHASE_COMPILE}" AND
       (NOT optimized OR NOT debug OR NOT frame_pointers)) OR
       (NOT profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}" AND optimized))
     set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
@@ -139,7 +143,8 @@ function(meshvale_geometry_classify_numeric_build)
       endif()
     endforeach()
     separate_arguments(source_legacy UNIX_COMMAND "${source_flags}")
-    meshvale_numeric_classify_tokens(owner_profile COMPILE ${common_options}
+    meshvale_numeric_classify_tokens(owner_profile
+      "${_MESHVALE_NUMERIC_PHASE_COMPILE}" ${common_options}
       ${source_options} ${source_legacy})
     meshvale_numeric_definitions_supported(definitions_supported
       ${common_definitions} ${source_definitions} ${debug_definitions})
@@ -161,7 +166,8 @@ function(meshvale_geometry_classify_numeric_build)
   get_property(static_flags TARGET meshvale_geometry PROPERTY STATIC_LIBRARY_FLAGS)
   separate_arguments(legacy_link_options UNIX_COMMAND
     "${target_link_flags} ${target_debug_link_flags} ${static_flags}")
-  meshvale_numeric_classify_tokens(link_profile LINK ${global_link_options}
+  meshvale_numeric_classify_tokens(link_profile
+    "${_MESHVALE_NUMERIC_PHASE_LINK}" ${global_link_options}
     ${target_link_options} ${directory_link_options} ${static_options}
     ${legacy_link_options})
   if(link_profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" OR
