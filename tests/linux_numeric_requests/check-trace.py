@@ -2,6 +2,7 @@
 """Check original request arguments, compiled plans, charges and free order."""
 import argparse
 import json
+import runpy
 from pathlib import Path
 
 SHAPES = {"scalar-f32": (4, 1), "scalar-f64": (8, 1), "scalar-i32": (4, 1),
@@ -59,7 +60,8 @@ def verify(text, owners):
     profile, sources, cases = parse(text)
     assert profile[2] == owners["profile"] and profile[3] == owners["revision"]
     assert profile[5] == ("ASAN=1" if profile[2] == "asan-ubsan" else "ASAN=0")
-    assert profile[6] == "TSAN=0"
+    assert profile[2] in {"native", "asan-ubsan", "tsan"}, "Unknown observation profile"
+    assert profile[6] == ("TSAN=1" if profile[2] == "tsan" else "TSAN=0")
     assert sources == [owners["owners"]["scalar_buffer"]["source_sha256"],
                        owners["owners"]["vector_buffer"]["source_sha256"],
                        owners["allocation_source_sha256"]]
@@ -67,6 +69,11 @@ def verify(text, owners):
     for owner in ("scalar_buffer", "vector_buffer"):
         record = owners["owners"][owner]
         assert record["exit_code"] == 0
+        if profile[2] == "tsan":
+            # The capture owner owns effective flag validation; recheck its
+            # retained argv rather than trust a caller-supplied profile name.
+            validator = runpy.run_path(str(Path(__file__).with_name("capture-profile.py")))
+            validator["validate_instrumentation"](record["original_arguments"], "tsan")
         macros = record["macros"]
         assert tuple(macro_int(macros, k) for k in ("EIGEN_WORLD_VERSION", "EIGEN_MAJOR_VERSION", "EIGEN_MINOR_VERSION")) == (3, 4, 1)
         assert macro_int(macros, "__linux__") == 1 and macro_int(macros, "__LP64__") == 1
@@ -79,6 +86,8 @@ def verify(text, owners):
     actual = [(c["shape"], c["mode"], c["count"]) for c in cases if c["shape"] in SHAPES]
     assert len(actual) == len(set(actual)) and set(actual) == expected
     assert len(cases) == len(expected) + 3
+    if profile[2] == "tsan":
+        assert all(case["qualified"] == 0 for case in cases), "This prerequisite must preserve unqualified TSan admission"
     seed_case = next(c for c in cases if c["mode"] == "seed")
     seed = seed_case["impl"]
     assert seed > 0
@@ -210,7 +219,8 @@ def verify(text, owners):
     return {"profile": profile, "sources": sources, "compiled_alignment": alignment,
             "compiled_malloc_already_aligned": aligned, "cases": report,
             "original_request_plan_correspondence": True, "public_factory_admission_tested": False,
-            "production_predicate_modified": False,
+            "observer_modifies_production_predicate": False,
+            "real_worker_tsan_qualified": False,
             "full_materialization_qualified": False, "observations_are_original_call_layers_not_RSS": True}
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import shlex
 import subprocess
 
@@ -12,6 +13,7 @@ DROP_SINGLE = {"-c", "-MD", "-MMD", "-MP"}
 DROP_PAIR = {"-o", "-MF", "-MT", "-MQ"}
 SUPPRESSION_PREFIXES = ("-fno-sanitize", "-fsanitize-ignorelist",
                         "-fsanitize-blacklist", "-fsanitize-system-ignorelist")
+PROFILES = ("native", "asan-ubsan", "tsan")
 
 
 def validate_instrumentation(arguments, profile):
@@ -19,10 +21,19 @@ def validate_instrumentation(arguments, profile):
         "Owner sanitizer disabling or ignorelist inputs are forbidden"
     assert not any(arg.startswith("@") or arg == "--config" or arg.startswith("--config=")
                    for arg in arguments), "Opaque response/config inputs cannot prove owner instrumentation"
+    assert "-Xclang" not in arguments, "Opaque frontend inputs cannot prove owner instrumentation"
     sanitizer_flags = [arg for arg in arguments if arg.startswith("-fsanitize=")]
-    if profile == "asan-ubsan":
+    if profile in ("asan-ubsan", "tsan"):
         features = set().union(*(set(f.split("=", 1)[1].split(",")) for f in sanitizer_flags))
-        assert features == {"address", "undefined"}, "Owner instrumentation differs from observer profile"
+        expected = {"thread"} if profile == "tsan" else {"address", "undefined"}
+        assert features == expected, "Owner instrumentation differs from observer profile"
+        if profile == "tsan":
+            optimizations = [arg for arg in arguments if arg.startswith("-O")]
+            debug = [arg for arg in arguments if arg == "-g" or re.fullmatch(r"-g[0-3]", arg)]
+            frames = [arg for arg in arguments if arg in ("-fomit-frame-pointer", "-fno-omit-frame-pointer")]
+            assert optimizations and optimizations[-1] == "-O1", "TSan owner must use effective -O1"
+            assert debug and debug[-1] != "-g0", "TSan owner must retain debug information"
+            assert frames and frames[-1] == "-fno-omit-frame-pointer", "TSan owner must retain frame pointers"
     else:
         assert not sanitizer_flags, "Native owner unexpectedly instrumented"
 
@@ -34,7 +45,7 @@ def main():
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--compile-commands", type=Path, required=True)
     parser.add_argument("--revision", required=True)
-    parser.add_argument("--profile", choices=("native", "asan-ubsan"), required=True)
+    parser.add_argument("--profile", choices=PROFILES, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     assert len(args.revision) == 40 and all(c in "0123456789abcdef" for c in args.revision)

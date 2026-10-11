@@ -6,26 +6,28 @@ actual original allocation arguments and free order with their private compiled
 request plans and shared-ledger admission. It does not qualify complete mesh
 materialization or enable a production allocation profile.
 
-The current Linux profile is unqualified. The test deliberately uses the private
-request/fill seam to observe original routes while that public admission gate
-remains closed. Do not change the production predicate to make this observer
-pass. Profile admission requires reviewed observations followed by separate
-public factory, worker, lifetime and failure qualification.
+The test deliberately uses the private request/fill seam, independently of
+public admission. The TSan profile remains unqualified; the observed native and
+ASan/UBSan profile has a bounded admission contract in
+[materialization](../../docs/materialization.md#compiled-allocation-profiles).
+Do not change the production predicate to make this observer pass. Profile
+admission requires reviewed observations followed by separate public factory,
+worker, lifetime and failure qualification.
 
 ## Matching build and invocation
 
 Use Linux x64 Clang, Debug, and an exact installed Geometry source/binary pair.
 The observer needs that source's private declarations; it does not need Eigen
 headers. Use separate fresh builds and installed prefixes for native and matching
-Clang ASan/UBSan. Actual Geometry owner compilation still requires pinned Eigen
+Clang ASan/UBSan or TSan. Actual Geometry owner compilation still requires pinned Eigen
 3.4.1. Preserve the dependency archive and installed-library hashes, compiler and
 linker versions, compile commands, linker map, disassembly/relocations, raw
 stdout/stderr and checked command exit codes.
 
-For the initial unqualified Linux observation, configure Geometry with
-`BUILD_TESTING=OFF`; its nonempty public factory tests become applicable after a
-separately reviewed profile admission. This observer is a prerequisite, rather
-than a replacement for those tests.
+For a serial original-request prerequisite, configure Geometry with
+`BUILD_TESTING=OFF`; the full factory suites run separately under their explicit
+supported-profile gates. An unqualified profile needs separately reviewed
+admission before those suites can succeed. This observer does not replace them.
 
 ```sh
 cmake -S "$GEOMETRY_SOURCE" -B "$GEOMETRY_BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++ -DBUILD_TESTING=OFF -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -48,7 +50,24 @@ For the ASan/UBSan cohort, compile and link both Geometry and observer with
 `asan-ubsan`. Use `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1` and
 `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. Keep all wrappers normally
 instrumented and errors unsuppressed. TSan real-worker/cap tests run separately;
-this serial request observer does not support TSan interception.
+the serial allocation prerequisite cannot qualify those workers.
+
+For the separate TSan prerequisite, select `OBSERVER_PROFILE=tsan` and compile
+every Geometry and observer translation unit with
+`-fsanitize=thread -O1 -g -fno-omit-frame-pointer`, linking both with
+`-fsanitize=thread`. Capture with `--profile tsan`; run with
+`TSAN_OPTIONS=halt_on_error=1`. The effective owning optimization must be `-O1`,
+debug information and frame pointers must remain enabled, and mixed/disabled
+sanitizers, ignorelists and opaque frontend overrides are rejected. Wrappers and
+the recorder remain fully instrumented. The actual observer must report
+`ASAN=0/TSAN=1`; original references, disassembly and runtime identities must
+establish delegation to the matching TSan originals. Retain all runtime failures
+without suppression. This prerequisite uses the private seam and requires the
+compiled plans to report unqualified TSan admission; it never enables the
+production profile. After reviewed actual route observations and a separate
+profile admission, the mandatory allocation-probe-OFF 13-suite TSan gate must
+execute full factories, real workers, cancellation, partial launches, shared
+caps and lifetime tests. Serial allocation observations cannot replace it.
 
 ## Observation contract
 
