@@ -14,6 +14,7 @@ DROP_PAIR = {"-o", "-MF", "-MT", "-MQ"}
 SUPPRESSION_PREFIXES = ("-fno-sanitize", "-fsanitize-ignorelist",
                         "-fsanitize-blacklist", "-fsanitize-system-ignorelist")
 PROFILES = ("native", "asan-ubsan", "tsan")
+MACRO_DEFINITION_PREFIX = "#define "
 
 
 def validate_instrumentation(arguments, profile):
@@ -43,6 +44,17 @@ def validate_instrumentation(arguments, profile):
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def parse_macro_definitions(stdout):
+    """Membership means defined; each value is its possibly empty replacement."""
+    macros = {}
+    for line in stdout.splitlines():
+        if line.startswith(MACRO_DEFINITION_PREFIX):
+            pieces = line.split(maxsplit=2)
+            if len(pieces) < 2:
+                raise ValueError("Preprocessor definition is missing its name")
+            macros[pieces[1]] = pieces[2] if len(pieces) == 3 else ""
+    return macros
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -86,12 +98,7 @@ def main():
         result = subprocess.run(preprocessor, cwd=entry["directory"], capture_output=True, text=True)
         (args.output / (owner + ".stdout")).write_text(result.stdout, encoding="utf-8")
         (args.output / (owner + ".stderr")).write_text(result.stderr, encoding="utf-8")
-        macros = {}
-        for line in result.stdout.splitlines():
-            if line.startswith("#define "):
-                pieces = line.split(maxsplit=2)
-                if len(pieces) == 3:
-                    macros[pieces[1]] = pieces[2]
+        macros = parse_macro_definitions(result.stdout)
         report["owners"][owner] = {"source_sha256": digest(actual_source),
             "original_arguments": original, "preprocessor_arguments": preprocessor,
             "exit_code": result.returncode, "macros": macros}
