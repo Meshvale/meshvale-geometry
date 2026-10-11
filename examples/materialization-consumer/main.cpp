@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
+#include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/materialization.h>
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <iostream>
 #include <span>
