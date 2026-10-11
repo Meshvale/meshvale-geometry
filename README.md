@@ -12,7 +12,7 @@ Fixed-width numeric rows use an owned row-major Eigen 3.4.1 implementation behin
 [`VectorBuffer<T, N>`](include/meshvale/geometry/vector_buffer.h), with compiled
 float/double shapes of width 2, 3 and 4. Raw positions use its xyz
 [`PositionBuffer`](include/meshvale/geometry/position_buffer.h) alias. Public headers
-expose owned xyz row values without Eigen types. See [numerical storage and
+expose owned fixed-width row values without Eigen types. See [numerical storage and
 dependency setup](docs/numerics.md) for the C++ source migration and pinned
 build dependency; polygon connectivity and owned Python records retain their
 existing shape. All seven canonical attribute scalar encodings likewise own
