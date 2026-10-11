@@ -9,6 +9,11 @@
 
 ### Changed
 
+- Generalize fixed-width numerical storage to `VectorBuffer<T, N>` for float/double
+  rows of width 2, 3 and 4. `PositionBuffer` is now its double xyz alias; existing
+  row calls and include paths work, but native type identity/symbols require a
+  coordinated rebuild. Common private Eigen aliases depend only on Eigen.
+
 - Raw Mesh positions use an Eigen 3.4.1 row-major owning `PositionBuffer` with
   explicit Get/Set/Append row values and strong copy/growth rollback. This changes
   C++ source/ABI shapes; polygon channels, canonical mesh/1 records and Python

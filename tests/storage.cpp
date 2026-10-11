@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/mesh.h>
+#include <meshvale/geometry/vector_buffer.h>
 
 #include <algorithm>
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -9,6 +11,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <type_traits>
 #include <utility>
 
 using namespace meshvale::geometry;
@@ -219,6 +222,79 @@ void PositionOwnershipAndBytes() {
   empty.CopyBytesTo({});
   require(empty.empty(), "empty byte transfers changed shape");
 }
+template <class T, int Components>
+void VectorOwnershipAndBytes() {
+  using Buffer = VectorBuffer<T, Components>;
+  using Bits = std::conditional_t<std::is_same_v<T, float>, std::uint32_t,
+                                  std::uint64_t>;
+  const Bits sign = [] {
+    if constexpr (std::is_same_v<T, float>)
+      return UINT32_C(0x80000000);
+    else
+      return UINT64_C(0x8000000000000000);
+  }();
+  const Bits nan = [] {
+    if constexpr (std::is_same_v<T, float>)
+      return UINT32_C(0x7f812345);
+    else
+      return UINT64_C(0x7ff0123456789abc);
+  }();
+  std::array<Bits, 2 * Components> bits{};
+  for (std::size_t i = 0; i < bits.size(); ++i)
+    bits[i] = i % 2 == 0 ? sign : nan;
+  std::array<std::byte, sizeof(bits) + 1> source{};
+  std::memcpy(source.data() + 1, bits.data(), sizeof(bits));
+  Buffer original;
+  original.AssignBytes({source.data() + 1, sizeof(bits)});
+  auto copy = original;
+  original.Set(0, {});
+  auto moved = std::move(copy);
+  require(copy.empty() && moved.size() == 2, "generic move/copy row count");
+  copy.Append({});
+  require(copy.size() == 1, "moved-from generic buffer is not reusable");
+  std::array<Bits, 2 * Components> exported{};
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "generic scalar bits or copy ownership changed");
+  auto row = moved.Get(0);
+  row[0] = T{7};
+  moved.reserve(32);
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits && moved.size() == 2,
+          "generic Get borrows or reserve changes logical rows");
+  bool rejected = false;
+  try {
+    moved.AssignBytes({source.data(), sizeof(typename Buffer::Row) - 1});
+  } catch (const std::invalid_argument&) {
+    rejected = true;
+  }
+  require(rejected, "incomplete generic row accepted");
+  rejected = false;
+  try {
+    moved.reserve(std::numeric_limits<std::size_t>::max());
+  } catch (const std::length_error&) {
+    rejected = true;
+  }
+  require(rejected, "generic extent overflow accepted");
+  moved.CopyBytesTo(std::as_writable_bytes(std::span(exported)));
+  require(exported == bits, "generic rejected mutation changes bits");
+  moved.clear();
+  typename Buffer::Row value{};
+  value.back() = T{9};
+  for (int i = 0; i < 40; ++i) moved.Append(value);
+  require(moved.size() == 40 && moved.Get(39).back() == T{9},
+          "generic append growth or row stride incorrect");
+  Buffer assigned{{value}};
+  assigned = moved;
+  moved.Set(0, {});
+  require(assigned.Get(0) == value, "generic copy assignment borrows storage");
+  auto* alias = &assigned;
+  assigned = *alias;
+  assigned = std::move(*alias);
+  require(assigned.Get(0) == value, "generic self assignment loses rows");
+  assigned.AssignBytes({});
+  assigned.CopyBytesTo({});
+  require(assigned.empty(), "empty generic byte transfer changes row count");
+}
 int main() {
   try {
     multiple_uvs_and_domains();
@@ -226,7 +302,13 @@ int main() {
     missing_rows_and_bad_storage();
     raw_defects();
     PositionOwnershipAndBytes();
-    std::cout << "Five storage suites passed\n";
+    VectorOwnershipAndBytes<float, 2>();
+    VectorOwnershipAndBytes<float, 3>();
+    VectorOwnershipAndBytes<float, 4>();
+    VectorOwnershipAndBytes<double, 2>();
+    VectorOwnershipAndBytes<double, 3>();
+    VectorOwnershipAndBytes<double, 4>();
+    std::cout << "Five mesh storage suites and six vector shapes passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

@@ -2,18 +2,14 @@
 #ifndef MESHVALE_GEOMETRY_SRC_EIGEN_TYPES_H_
 #define MESHVALE_GEOMETRY_SRC_EIGEN_TYPES_H_
 
-#include <meshvale/geometry/position_buffer.h>
-
 #include <Eigen/Core>
-#include <tuple>
 
 namespace meshvale::geometry::eigen_types {
 
 using Index = Eigen::Index;
-inline constexpr int kPositionComponents =
-    static_cast<int>(std::tuple_size_v<PositionBuffer::Row>);
-using PositionMatrix =
-    Eigen::Matrix<double, Eigen::Dynamic, kPositionComponents, Eigen::RowMajor>;
+template <class Scalar, int Components>
+using RowMatrix =
+    Eigen::Matrix<Scalar, Eigen::Dynamic, Components, Eigen::RowMajor>;
 template <class Scalar>
 using Vector = Eigen::Matrix<Scalar, Eigen::Dynamic, 1>;
 template <class Scalar>

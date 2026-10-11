@@ -16,7 +16,7 @@ if(Git_FOUND)
 endif()
 
 include(cmake/MeshvaleEigen.cmake)
-add_library(meshvale_geometry STATIC src/attributes.cpp src/mesh.cpp src/topology.cpp src/position_buffer.cpp src/scalar_buffer.cpp)
+add_library(meshvale_geometry STATIC src/attributes.cpp src/mesh.cpp src/topology.cpp src/vector_buffer.cpp src/scalar_buffer.cpp)
 add_library(meshvale::geometry ALIAS meshvale_geometry)
 set_target_properties(meshvale_geometry PROPERTIES EXPORT_NAME geometry POSITION_INDEPENDENT_CODE ON)
 target_compile_features(meshvale_geometry PUBLIC cxx_std_20)
@@ -138,8 +138,13 @@ if(BUILD_TESTING)
   option(MESHVALE_GEOMETRY_ALLOCATION_PROBE
     "Build ordinary replacement-new allocation failure tests (disable for TSan)" ON)
   add_library(meshvale_geometry_header_checks OBJECT)
+  set(meshvale_eigen_probe "${CMAKE_CURRENT_BINARY_DIR}/eigen_types_h.cpp")
+  file(WRITE "${meshvale_eigen_probe}"
+    "#include \"eigen_types.h\"\n#include \"eigen_types.h\"\n")
+  target_sources(meshvale_geometry PRIVATE "${meshvale_eigen_probe}")
+  target_include_directories(meshvale_geometry PRIVATE src)
   target_link_libraries(meshvale_geometry_header_checks PRIVATE meshvale::geometry)
-  foreach(meshvale_header IN ITEMS attributes mesh topology execution position_buffer scalar_buffer attribute_numerics)
+  foreach(meshvale_header IN ITEMS attributes mesh topology execution position_buffer vector_buffer scalar_buffer attribute_numerics)
     set(meshvale_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_header}_h.cpp")
     file(WRITE "${meshvale_probe}"
       "#include <meshvale/geometry/${meshvale_header}.h>\n#include <meshvale/geometry/${meshvale_header}.h>\n")

@@ -3,17 +3,19 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-NUMERICS-001 |
-| Version | 0.3.0 |
+| Version | 0.4.0 |
 | Status | Native development interface; no stable API/ABI or release |
 | Owner | Geometry |
 
-[`PositionBuffer`](../include/meshvale/geometry/position_buffer.h) owns raw xyz
-rows through a private Eigen 3.4.1 row-major dynamic matrix implementation.
+[`VectorBuffer<T, N>`](../include/meshvale/geometry/vector_buffer.h) owns fixed-width
+numeric rows through a private Eigen 3.4.1 row-major dynamic matrix implementation.
+[`PositionBuffer`](../include/meshvale/geometry/position_buffer.h) is the mesh's
+`VectorBuffer<double, kVector3Components>` alias for raw xyz rows.
 Declarations live in `.h`; ownership and storage details live in compiled `.cpp`.
 Shared Eigen aliases live in the private [src/eigen_types.h](../src/eigen_types.h):
-row-major position
-storage, typed dynamic vectors, unaligned const vector Maps and the signed host
-index. Public headers expose no Eigen types or borrowed matrix expressions. The
+generic row-major matrices, typed dynamic vectors, unaligned const vector Maps
+and the signed host index. That file depends only on Eigen, with no mesh/buffer
+declarations. Public headers expose no Eigen types or borrowed matrix expressions. The
 [raw mesh contract](attributes.md) owns polygon offsets, corner indices and all
 seven independent attribute scalar types. Canonical attribute scalars now also
 own Eigen vectors through [`ScalarBuffer<T>`](../include/meshvale/geometry/scalar_buffer.h).
@@ -85,6 +87,18 @@ context-aware operation contract and qualified threshold.
 
 ## PositionBuffer interface
 
+The following position guarantees are provided by the shared `VectorBuffer<T, N>`
+implementation. Its compiled shapes are `float` or `double` with widths 2, 3 and
+4; other scalar types or widths are rejected at compilation. Include
+`vector_buffer.h` and link `meshvale::geometry` to use these shapes, for example
+`VectorBuffer<float, kVector2Components>` for owned UV rows or
+`VectorBuffer<double, kVector4Components>` for tangent rows. Each row type is
+`std::array<T, N>`; byte extents are complete rows of `N*sizeof(T)` bytes.
+These value buffers impose no mesh domain, normal normalization or attribute
+semantic. Canonical attributes still use flat `ScalarBuffer<T>` ownership for
+their independently typed dense/ragged channel representation, including
+arbitrary skin-influence counts.
+
 `size()` counts logical xyz rows; `empty()` tests that count. Default and
 moved-from buffers are empty and reusable. The initializer-list constructor takes
 owned xyz values, so `mesh.positions = {{0,0,0}, {1,0,0}}` constructs a replacement
@@ -133,6 +147,14 @@ Every extension still compiles its installed record adapter in its own domain.
 Separate immutable buffers support concurrent reads. Mutation, moving or
 destruction of the same C++ buffer alongside access requires external
 synchronization. No borrowed matrix/span ownership is promised.
+
+The change from a concrete `PositionBuffer` class to an alias preserves ordinary
+position source calls and the `position_buffer.h` include path, but changes native
+type identity and compiled symbols. Rebuild native libraries and every extension
+that links them together; do not mix older position libraries with these headers.
+Consumers that forward-declare `class PositionBuffer` must include its owning
+header instead. Python mesh/1 record shapes and owned snapshot behavior are
+unchanged. There is no stable ABI promise for these development snapshots.
 
 ## Numerical and execution limits
 
