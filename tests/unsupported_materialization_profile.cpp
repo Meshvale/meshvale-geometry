@@ -23,6 +23,7 @@ namespace {
 namespace geo = meshvale::geometry;
 constexpr std::uint64_t kBytesPerKiB = 1024;
 constexpr std::uint64_t kBudgetBytes = kBytesPerKiB * kBytesPerKiB;
+constexpr std::uint64_t kMinimumParallelBytes = kBytesPerKiB * kBytesPerKiB;
 constexpr std::uint64_t kPhysicalCountLimit = 1024;
 constexpr std::uint64_t kDescriptorByteLimit = 4096;
 constexpr std::uint64_t kIssueLimit = 128;
@@ -56,7 +57,8 @@ geo::MeshMaterializationLimits Limits() {
           kDescriptorByteLimit, kBudgetBytes};
 }
 geo::MeshMaterializationWorkPolicy Work() {
-  return {kBudgetBytes, kPartitionBytes, kCancellationScalars, kMaximumJobs};
+  return {kMinimumParallelBytes, kPartitionBytes, kCancellationScalars,
+          kMaximumJobs};
 }
 geo::MeshInspectionLimits InspectionLimits() {
   return {kIssueLimit, kBudgetBytes};
