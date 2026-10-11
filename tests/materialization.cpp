@@ -432,6 +432,7 @@ void CanceledEarlierPrefixCase() {
 }
 void CanceledCallerRangeCase() {
   constexpr std::size_t kCallerOnlyBudget = 1;
+  constexpr std::size_t kCheckEveryScalar = 1;
   auto options = TestExecutionOptions();
   options.worker_budget = kCallerOnlyBudget;
   ExecutionContext execution(options);
@@ -454,7 +455,7 @@ void CanceledCallerRangeCase() {
   auto work = CaptureWork();
   work.parallel_min_bytes = kSourceParallelThreshold;
   work.partition_bytes = kTwoVertexPartitionBytes;
-  work.cancellation_block_scalars = kCallerOnlyBudget;
+  work.cancellation_block_scalars = kCheckEveryScalar;
   struct StopOnIssue {
     std::stop_source stop;
     std::size_t calls = 0;
