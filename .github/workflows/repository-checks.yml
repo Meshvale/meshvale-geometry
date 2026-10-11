@@ -177,7 +177,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [native, asan-ubsan]
+        profile: [native, asan-ubsan, tsan]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -193,6 +193,7 @@ jobs:
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          TSAN_OPTIONS: halt_on_error=1
       - name: Retain original observation evidence including failures
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

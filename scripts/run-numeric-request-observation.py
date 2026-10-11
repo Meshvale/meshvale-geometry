@@ -7,14 +7,24 @@ import json
 from pathlib import Path
 import platform
 import re
+import runpy
+import shlex
 import shutil
 import subprocess
 import sys
 import tarfile
 from urllib.parse import urlsplit
 
-PROFILES = ("native", "asan-ubsan")
-SANITIZER_FLAGS = "-fsanitize=address,undefined -fno-omit-frame-pointer"
+PROFILE_NATIVE = "native"
+PROFILE_ASAN_UBSAN = "asan-ubsan"
+PROFILE_TSAN = "tsan"
+PROFILES = (PROFILE_NATIVE, PROFILE_ASAN_UBSAN, PROFILE_TSAN)
+SANITIZER_FLAGS = {
+    PROFILE_ASAN_UBSAN: ("-fsanitize=address,undefined -fno-omit-frame-pointer",
+                        "-fsanitize=address,undefined"),
+    PROFILE_TSAN: ("-fsanitize=thread -O1 -g -fno-omit-frame-pointer",
+                   "-fsanitize=thread"),
+}
 BUILD_WORKERS = "2"
 COMMAND_TIMEOUT_SECONDS = 600
 OBSERVATION_TIMEOUT_SECONDS = 120
@@ -107,9 +117,10 @@ def main():
     dependency_workspace = output / "dependency-workspace"
     flags = ["-DCMAKE_BUILD_TYPE=Debug", "-DCMAKE_CXX_COMPILER=" + tools["clang++"],
              "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON", "-DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF"]
-    if args.profile == "asan-ubsan":
-        flags += ["-DCMAKE_CXX_FLAGS=" + SANITIZER_FLAGS,
-                  "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"]
+    if args.profile in SANITIZER_FLAGS:
+        compile_flags, link_flags = SANITIZER_FLAGS[args.profile]
+        flags += ["-DCMAKE_CXX_FLAGS=" + compile_flags,
+                  "-DCMAKE_EXE_LINKER_FLAGS=" + link_flags]
     run("producer-configure", [cmake, "-S", source, "-B", build, "-G", "Ninja",
         *flags, "-DBUILD_TESTING=OFF", "-DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON",
         "-DFETCHCONTENT_BASE_DIR=" + str(dependency_workspace)])
@@ -133,6 +144,35 @@ def main():
     prefix_files = manifest(prefix)
     write_json("producer-prefix-inputs.json", prefix_files)
     observer_source = source / "tests/linux_numeric_requests"
+    validate_instrumentation = runpy.run_path(
+        str(observer_source / "capture-profile.py"))["validate_instrumentation"]
+
+    def verify_compiled_inputs(name, compile_commands, source_root):
+        records = []
+        entries = json.loads(compile_commands.read_text(encoding="utf-8"))
+        assert entries, "No project compilation inputs retained"
+        for entry in entries:
+            directory = Path(entry["directory"])
+            actual_source = Path(entry["file"])
+            if not actual_source.is_absolute():
+                actual_source = directory / actual_source
+            assert actual_source.resolve().is_relative_to(source_root.resolve())
+            arguments = entry.get("arguments") or shlex.split(entry["command"])
+            validate_instrumentation(arguments, args.profile)
+            object_file = Path(arguments[arguments.index("-o") + 1])
+            if not object_file.is_absolute():
+                object_file = directory / object_file
+            assert object_file.is_file()
+            records.append({"source": actual_source.relative_to(source).as_posix(),
+                            "source_sha256": digest(actual_source),
+                            "arguments": arguments,
+                            "object": object_file.relative_to(output).as_posix(),
+                            "object_sha256": digest(object_file)})
+        write_json(name, {"profile": args.profile, "records": records,
+                         "compile_commands_sha256": digest(compile_commands)})
+
+    verify_compiled_inputs("producer-compiled-inputs.json",
+                           build / "compile_commands.json", source)
     owner_profile = output / "owner-profile"
     run("owner-profile", [sys.executable, observer_source / "capture-profile.py",
         "--source", source, "--compile-commands", build / "compile_commands.json",
@@ -146,6 +186,8 @@ def main():
         "-DOBSERVER_GEOMETRY_SOURCE=" + str(source),
         "-DOBSERVER_GEOMETRY_REVISION=" + revision])
     run("observer-build", [cmake, "--build", observer_build, "--parallel", BUILD_WORKERS])
+    verify_compiled_inputs("observer-compiled-inputs.json",
+                           observer_build / "compile_commands.json", observer_source)
     executable = observer_build / "observer"
     run("observer-symbols", [tools["readelf"], "--symbols", "--wide", executable])
     run("observer-disassembly", [tools["objdump"], "--disassemble", "--reloc", executable])
