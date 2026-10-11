@@ -3,6 +3,7 @@
 #define MESHVALE_GEOMETRY_MATERIALIZATION_H_
 
 #include <meshvale/geometry/attributes.h>
+#include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/execution.h>
 
 #include <cstdint>

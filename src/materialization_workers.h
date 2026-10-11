@@ -2,6 +2,7 @@
 #ifndef MESHVALE_GEOMETRY_SRC_MATERIALIZATION_WORKERS_H_
 #define MESHVALE_GEOMETRY_SRC_MATERIALIZATION_WORKERS_H_
 
+#include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/execution.h>
 #include <meshvale/geometry/materialization.h>
 
