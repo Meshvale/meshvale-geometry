@@ -8,6 +8,11 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <version>
+
+#if defined(__linux__)
+#include <features.h>
+#endif
 
 #include "eigen_types.h"
 #include "numeric_buffer_internal.h"
@@ -61,19 +66,62 @@ struct ScalarBuffer<T>::Impl {
 };
 
 bool numeric_detail::QualifiedRequestProfile() noexcept {
-#if defined(_WIN64) && defined(_MSC_VER)
-  // The observed original request cohort is pinned Eigen 3.4.1 on MSVC x64,
-  // with its plain default-aligned route. Other profiles remain unqualified.
+#if (defined(_WIN64) && defined(_MSC_VER)) || \
+    (defined(__linux__) && defined(__x86_64__) && defined(__clang__))
+  // Plans require the pinned original plain, default-aligned Eigen route.
   constexpr int kQualifiedEigenWorldVersion = 3;
   constexpr int kQualifiedEigenMajorVersion = 4;
   constexpr int kQualifiedEigenMinorVersion = 1;
   constexpr int kQualifiedDefaultAlignment = 16;
   constexpr int kQualifiedMallocAlreadyAligned = 1;
-  return EIGEN_WORLD_VERSION == kQualifiedEigenWorldVersion &&
-         EIGEN_MAJOR_VERSION == kQualifiedEigenMajorVersion &&
-         EIGEN_MINOR_VERSION == kQualifiedEigenMinorVersion &&
-         EIGEN_DEFAULT_ALIGN_BYTES == kQualifiedDefaultAlignment &&
-         EIGEN_MALLOC_ALREADY_ALIGNED == kQualifiedMallocAlreadyAligned;
+  const bool qualified_eigen =
+      EIGEN_WORLD_VERSION == kQualifiedEigenWorldVersion &&
+      EIGEN_MAJOR_VERSION == kQualifiedEigenMajorVersion &&
+      EIGEN_MINOR_VERSION == kQualifiedEigenMinorVersion &&
+      EIGEN_DEFAULT_ALIGN_BYTES == kQualifiedDefaultAlignment &&
+      EIGEN_MALLOC_ALREADY_ALIGNED == kQualifiedMallocAlreadyAligned;
+  if (!qualified_eigen) return false;
+#if defined(_WIN64) && defined(_MSC_VER)
+  // Preserve the independently observed MSVC x64 cohort.
+  return true;
+#elif defined(__GLIBC__) && defined(__GLIBC_MINOR__) &&                    \
+    defined(_GLIBCXX_RELEASE) && defined(__GLIBCXX__) &&                   \
+    defined(MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD) && !defined(NDEBUG) &&  \
+    !defined(__OPTIMIZE__) && !defined(__FAST_MATH__) &&                   \
+    defined(EIGEN_VECTORIZE_SSE2) && !defined(EIGEN_VECTORIZE_SSE3) &&     \
+    !defined(EIGEN_VECTORIZE_SSSE3) && !defined(EIGEN_VECTORIZE_SSE4_1) && \
+    !defined(EIGEN_VECTORIZE_SSE4_2) && !defined(EIGEN_VECTORIZE_AVX) &&   \
+    !defined(EIGEN_VECTORIZE_AVX512) && !defined(EIGEN_DONT_VECTORIZE)
+  // Linux admission is restricted to the observed Debug/native and matching
+  // ASan/UBSan compiler, C++ runtime headers, ABI and default SSE2 profile.
+  constexpr int kQualifiedClangMajorVersion = 18;
+  constexpr int kQualifiedClangMinorVersion = 1;
+  constexpr int kQualifiedClangPatchVersion = 3;
+  constexpr int kQualifiedGlibcMajorVersion = 2;
+  constexpr int kQualifiedGlibcMinorVersion = 39;
+  constexpr int kQualifiedLibstdcxxRelease = 14;
+  constexpr long kQualifiedLibstdcxxDate = 20240908;
+  constexpr int kQualifiedDebugBuild = 1;
+  constexpr std::size_t kQualifiedLp64Bytes = 8;
+  const bool qualified_sanitizers =
+      !__has_feature(thread_sanitizer) && !__has_feature(memory_sanitizer) &&
+      !__has_feature(hwaddress_sanitizer) &&
+      (__has_feature(address_sanitizer) ==
+       __has_feature(undefined_behavior_sanitizer));
+  return qualified_sanitizers &&
+         __clang_major__ == kQualifiedClangMajorVersion &&
+         __clang_minor__ == kQualifiedClangMinorVersion &&
+         __clang_patchlevel__ == kQualifiedClangPatchVersion &&
+         __GLIBC__ == kQualifiedGlibcMajorVersion &&
+         __GLIBC_MINOR__ == kQualifiedGlibcMinorVersion &&
+         _GLIBCXX_RELEASE == kQualifiedLibstdcxxRelease &&
+         __GLIBCXX__ == kQualifiedLibstdcxxDate &&
+         MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD == kQualifiedDebugBuild &&
+         sizeof(void*) == kQualifiedLp64Bytes &&
+         sizeof(long) == kQualifiedLp64Bytes;
+#else
+  return false;
+#endif
 #else
   return false;
 #endif

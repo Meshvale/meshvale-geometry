@@ -27,7 +27,8 @@ target_compile_features(meshvale_geometry PUBLIC cxx_std_20)
 target_include_directories(meshvale_geometry SYSTEM PRIVATE
   $<TARGET_PROPERTY:Eigen3::Eigen,INTERFACE_INCLUDE_DIRECTORIES>)
 target_compile_definitions(meshvale_geometry PRIVATE
-  EIGEN_MPL2_ONLY EIGEN_DONT_PARALLELIZE EIGEN_FAST_MATH=0)
+  EIGEN_MPL2_ONLY EIGEN_DONT_PARALLELIZE EIGEN_FAST_MATH=0
+  MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD=$<IF:$<CONFIG:Debug>,1,0>)
 target_include_directories(meshvale_geometry PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)

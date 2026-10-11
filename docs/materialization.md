@@ -209,6 +209,25 @@ resize, zero-fill or expression temporaries. Actual old/new overlap remains
 charged; common-ledger rejection or the new-operation cap returns
 `kBudgetExceeded/kRequestBudget`.
 
+Nonempty canonical numerical storage currently admits MSVC x64 with pinned
+Eigen 3.4.1, default alignment 16 and malloc-already-aligned exactly 1. Linux
+admission is restricted to the observed x86_64 LP64 Debug profile: Clang 18.1.3,
+glibc 2.39, libstdc++ release 14/header date 20240908, the same Eigen route and
+default SSE2 vectorization. The compiled numerical target must identify Debug;
+missing configuration markers, NDEBUG, optimization, fast math and extended
+SIMD are unqualified. The observed Linux sanitizer profile combines ASan and
+UBSan; TSan, memory/HW address sanitizers and either ASan or UBSan alone remain
+unqualified. This admission identifies original numerical request routes; full
+factory, worker and sanitizer acceptance remains a separate qualification gate.
+
+Other Linux compilers/configurations, macOS, alternate C++ runtime headers and
+other allocation tuples return the unsupported-profile diagnostic for nonempty
+numerical storage. Typed empty numerical input and structural storage remain
+subject to the same validation and charged ownership contract. Ordinary generic
+buffers retain their existing Eigen allocations and do not depend on this
+materialization admission policy. Installed consumers use their library's
+compiled profile; their own compiler or Eigen settings cannot change it.
+
 `NewRequestedBytes()` observes the operation's current live requested blocks,
 including retained parts and accounting owners. It is not an object-local
 footprint, logical byte count or RSS. Candidate and selection handles may share
