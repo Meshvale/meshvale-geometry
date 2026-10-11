@@ -13,6 +13,7 @@
 namespace meshvale::geometry {
 namespace {
 static_assert(sizeof(float) == 4 && sizeof(double) == 8);
+constexpr std::size_t kCapacityGrowthFactor = 2;
 template <class T, int Components>
 std::size_t MaximumRows() {
   // Eigen's aligned allocator needs padding/header space in addition to
@@ -126,9 +127,10 @@ void VectorBuffer<T, Components>::Append(const Row& value) {
   const auto capacity =
       impl_ ? static_cast<std::size_t>(impl_->allocation.rows()) : 0;
   if (needed > capacity) {
-    const auto grown = capacity <= MaximumRows<T, Components>() / 2
-                           ? capacity * 2
-                           : MaximumRows<T, Components>();
+    const auto grown =
+        capacity <= MaximumRows<T, Components>() / kCapacityGrowthFactor
+            ? capacity * kCapacityGrowthFactor
+            : MaximumRows<T, Components>();
     reserve(std::max(needed, grown));
   }
   std::memcpy(impl_->allocation.data() + impl_->count * Components,
