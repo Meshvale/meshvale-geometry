@@ -56,9 +56,10 @@ polygon storage under shared allocation and worker budgets, inspects raw storage
 and selects faces with vertex sharing and face/corner correspondence. Link the
 separate `meshvale::materialization` target; see its
 [installed example](examples/materialization-consumer/CMakeLists.txt).
-Nonempty numerical capture currently admits only the documented Windows/MSVC
-allocation profile. Other profiles reject it before allocation; this development
-interface has no stable API/ABI guarantee.
+Nonempty numerical capture requires an admitted compiled allocation profile.
+See the [bounded build profiles and remaining qualification gates](docs/materialization.md#compiled-allocation-profiles).
+Other profiles reject it before allocation; this development interface has no
+stable API/ABI guarantee.
 
 ## Planned capabilities
 
