@@ -286,7 +286,7 @@ cmake --install .local/build --config Release --prefix .local/install
 ```
 
 Eigen is a private header-only implementation dependency. Geometry exports its
-compiled static position implementation without an Eigen target/include path.
+compiled static numerical storage implementation without an Eigen target/include path.
 Installed native/record consumers require the Geometry install and its existing
 thread dependency, without Eigen headers or source/private configuration.
 Native installs and Python packages retain MPL-2.0, Apache and included Core
