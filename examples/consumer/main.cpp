@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/mesh.h>
 #include <meshvale/geometry/topology.h>
+#include <meshvale/geometry/vector_buffer.h>
 
 int main() {
+  meshvale::geometry::VectorBuffer<float, 2> uv{{{0, 1}}};
+  meshvale::geometry::VectorBuffer<double, 4> tangent{{{1, 0, 0, -1}}};
+  auto uv_copy = uv;
+  uv.Set(0, {1, 0});
+  if (uv_copy.Get(0)[1] != 1 || tangent.Get(0)[3] != -1) return 3;
   meshvale::geometry::Mesh mesh;
   mesh.positions = {{0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
   mesh.face_offsets = {0, 3};

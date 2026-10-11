@@ -8,8 +8,10 @@ ending in `.hpp` have been removed. Python record consumers explicitly compile
 the installed adapter source for their own extension domain; native builds do
 not require Python.
 
-Raw positions use an owned row-major Eigen 3.4.1 implementation behind
-[`PositionBuffer`](include/meshvale/geometry/position_buffer.h). Public headers
+Fixed-width numeric rows use an owned row-major Eigen 3.4.1 implementation behind
+[`VectorBuffer<T, N>`](include/meshvale/geometry/vector_buffer.h), with compiled
+float/double shapes of width 2, 3 and 4. Raw positions use its xyz
+[`PositionBuffer`](include/meshvale/geometry/position_buffer.h) alias. Public headers
 expose owned xyz row values without Eigen types. See [numerical storage and
 dependency setup](docs/numerics.md) for the C++ source migration and pinned
 build dependency; polygon connectivity and owned Python records retain their
