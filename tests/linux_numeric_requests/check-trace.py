@@ -87,6 +87,7 @@ def verify(text, owners):
         events = case["events"]
         assert len(events) == case["event_count"] <= 256, "Dropped or overflowing observations"
         live, pending, completed, samples = {"c": {}, "new": {}}, [], [], []
+        null_free_calls = []
         for event in events:
             assert event["phase"] in PHASES
             assert all(event[k] >= 0 for k in ("first", "second", "pointer", "previous", "root", "op"))
@@ -115,6 +116,8 @@ def verify(text, owners):
             else:
                 assert kind == "free" or kind in DELETIONS
                 assert begin["pointer"] == event["pointer"], "Free pointer changed between original-call boundaries"
+                if kind == "free":
+                    assert event["first"] == event["second"] == event["previous"] == 0
                 if event["pointer"]:
                     assert event["pointer"] in live[channel], "Free lacks observed original allocation"
                     size, allocation_alignment, allocation_kind = live[channel][event["pointer"]]
@@ -124,6 +127,13 @@ def verify(text, owners):
                         assert event["second"] == allocation_alignment
                         assert event["first"] == (size if "sized" in kind else 0)
                     del live[channel][event["pointer"]]
+                else:
+                    # Pinned Eigen may release its initially empty storage
+                    # before the first allocation. This paired call is retained
+                    # separately and cannot discharge a live numeric request.
+                    assert kind == "free" and event["phase"] == "construct"
+                    assert case["mode"] == "admitted" and case["count"] > 0
+                    null_free_calls.append({"begin": begin, "end": event})
         assert not pending and not live["c"] and not live["new"]
         mode = case["mode"]
         if mode == "control":
@@ -169,7 +179,7 @@ def verify(text, owners):
                 if payload:
                     assert len(allocations) == 2, "Expected original PIMPL-new and Eigen-malloc only"
                     implementation = next(b for a, b in allocations if a["kind"] == "new")
-                    numeric = next(b for a, b in allocations if a["kind"] == "malloc")
+                    numeric_begin, numeric = next((a, b) for a, b in allocations if a["kind"] == "malloc")
                     assert implementation["first"] == case["impl"] and numeric["first"] == case["numeric"]
                     assert case["data"] != 0
                     if alignment == 0 or aligned:
@@ -179,7 +189,12 @@ def verify(text, owners):
                     if alignment:
                         assert case["data"] % alignment == 0
                     assert case["data"] + payload <= numeric["pointer"] + numeric["first"]
-                    frees = [a for a, _ in completed if a["kind"] in DELETIONS | {"free"}]
+                    assert len(null_free_calls) <= 1
+                    assert all(implementation["ordinal"] < call["begin"]["ordinal"] <
+                               call["end"]["ordinal"] < numeric_begin["ordinal"]
+                               for call in null_free_calls)
+                    frees = [a for a, _ in completed if a["kind"] in DELETIONS | {"free"}
+                             and a["pointer"] != 0]
                     assert [(a["kind"], a["pointer"]) for a in frees] in (
                         [("free", numeric["pointer"]), ("delete", implementation["pointer"])],
                         [("free", numeric["pointer"]), ("delete-sized", implementation["pointer"])])
@@ -187,7 +202,9 @@ def verify(text, owners):
                     assert all(a["phase"] == "destroy" for a in frees)
                 else:
                     assert not completed and case["data"] == 0
-        report.append({k: v for k, v in case.items() if k != "events"})
+        recorded_case = {k: v for k, v in case.items() if k != "events"}
+        recorded_case["null_free_calls"] = null_free_calls
+        report.append(recorded_case)
     assert sum(c["mode"] == "control" for c in cases) == 1
     assert sum(c["mode"] == "seed-denied" for c in cases) == 1
     return {"profile": profile, "sources": sources, "compiled_alignment": alignment,

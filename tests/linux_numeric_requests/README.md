@@ -81,6 +81,13 @@ one-byte-less rollback. Caller-supplied source identities and source hashes
 remain separate from installed-binary provenance; the invocation owner must
 capture that provenance independently.
 
+Pinned Eigen construction may call `free(nullptr)` while replacing its initially
+empty storage. The checker retains the matched begin/end events in its report
+and validates their zero arguments, full charges and construction phase between
+PIMPL creation and numerical malloc. That call cannot discharge a live block or
+replace the later required numerical free and PIMPL delete. Unexpected null
+allocations, null calls in other phases and missing/nonzero frees still fail.
+
 `capture-profile.py` replays preprocessing with the scalar/vector owners' exact
 compile commands, retaining original flags and source hashes. It never redefines
 Eigen macros. It rejects sanitizer disabling/ignorelist flags and opaque
