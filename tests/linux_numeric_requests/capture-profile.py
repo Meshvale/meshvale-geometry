@@ -29,7 +29,9 @@ def validate_instrumentation(arguments, profile):
         assert features == expected, "Owner instrumentation differs from observer profile"
         if profile == "tsan":
             optimizations = [arg for arg in arguments if arg.startswith("-O")]
-            debug = [arg for arg in arguments if arg == "-g" or re.fullmatch(r"-g[0-3]", arg)]
+            debug = [arg for arg in arguments if arg.startswith("-g")]
+            assert all(arg == "-g" or re.fullmatch(r"-g[0-3]", arg)
+                       for arg in debug), "Unclassified debug options cannot prove TSan debug information"
             frames = [arg for arg in arguments if arg in ("-fomit-frame-pointer", "-fno-omit-frame-pointer")]
             assert optimizations and optimizations[-1] == "-O1", "TSan owner must use effective -O1"
             assert debug and debug[-1] != "-g0", "TSan owner must retain debug information"
