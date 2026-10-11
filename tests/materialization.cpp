@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/execution.h>
+#include <meshvale/geometry/materialization.h>
 #include <meshvale/geometry/scalar_buffer.h>
 
+#include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -10,10 +12,15 @@
 #include <exception>
 #include <iostream>
 #include <limits>
+#include <span>
 #include <stdexcept>
 #include <stop_token>
+#include <string_view>
+#include <variant>
 
 #include "materialization_allocation.h"
+#include "materialization_test_internal.h"
+#include "materialization_workers.h"
 #include "numeric_buffer_internal.h"
 
 namespace {
@@ -133,6 +140,204 @@ void AdmissionCase() {
   }
   Require(execution.ActiveTrackedPayload() == 0, "failed admission leaked");
 }
+constexpr std::uint64_t kFixtureCountLimit = 64;
+constexpr std::uint64_t kFixtureDescriptorLimit = 4096;
+constexpr std::uint64_t kFixtureParallelBytes = 64;
+constexpr std::uint64_t kFixturePartitionBytes = 16;
+constexpr std::uint64_t kFixtureCancelScalars = 8;
+constexpr std::uint64_t kFixtureMaximumJobs = 16;
+constexpr std::string_view kEmptyChannelName = "authored-empty";
+constexpr std::string_view kDuplicateMetadataKey = "duplicate";
+MeshMaterializationLimits CaptureLimits() {
+  return {kFixtureCountLimit,      kFixtureCountLimit, kFixtureCountLimit,
+          kFixtureCountLimit,      kFixtureCountLimit, kFixtureCountLimit,
+          kFixtureCountLimit,      kFixtureCountLimit, kFixtureCountLimit,
+          kFixtureDescriptorLimit, kRequestBudget};
+}
+MeshMaterializationWorkPolicy CaptureWork() {
+  return {kFixtureParallelBytes, kFixturePartitionBytes, kFixtureCancelScalars,
+          kFixtureMaximumJobs};
+}
+void ValidationCase() {
+  ExecutionContext execution(TestExecutionOptions());
+  std::stop_source stopped;
+  stopped.request_stop();
+  const auto config =
+      MaterializeMesh({}, {}, CaptureWork(), execution, stopped.get_token());
+  Require(config.status == MaterializationStatus::kInvalidConfiguration,
+          "stop changed an earlier configuration defect");
+  const auto transport = MaterializeMesh({}, CaptureLimits(), CaptureWork(),
+                                         execution, stopped.get_token());
+  Require(transport.status == MaterializationStatus::kInvalidTransport,
+          "stop changed an earlier physical selector defect");
+  constexpr std::size_t kIncompletePositionScalars = 2;
+  const std::array<double, kIncompletePositionScalars> incomplete{};
+  const MeshMaterializationInput incomplete_input{
+      std::span<const double>(incomplete),
+      TriangleTopologyInput{std::span<const std::uint32_t>()},
+      {}};
+  const auto extent =
+      MaterializeMesh(incomplete_input, CaptureLimits(), CaptureWork(),
+                      execution, stopped.get_token());
+  Require(extent.status == MaterializationStatus::kInvalidTransport &&
+              extent.diagnostic.code ==
+                  MaterializationDiagnosticCode::kPositionExtent,
+          "incomplete XYZ transport was silently changed");
+  Require(execution.ActiveTrackedPayload() == 0,
+          "validation allocated or retained a block");
+}
+void BackendExceptionCase() {
+  ExecutionContext execution(TestExecutionOptions());
+  allocation::TestHooks hooks;
+  hooks.allocation.allocate = [](std::size_t, std::size_t, void*) -> void* {
+    throw std::length_error("injected original runtime exception");
+  };
+  const MeshMaterializationInput input{
+      std::span<const double>(),
+      TriangleTopologyInput{std::span<const std::uint32_t>()},
+      {}};
+  bool propagated = false;
+  try {
+    (void)allocation::TestMaterializeMesh(input, CaptureLimits(), CaptureWork(),
+                                          execution, {}, hooks);
+  } catch (const std::length_error&) {
+    propagated = true;
+  }
+  Require(propagated && execution.ActiveTrackedPayload() == 0,
+          "runtime length error was converted to an extent diagnostic");
+}
+void AuthoredEmptyCase() {
+  ExecutionContext execution(TestExecutionOptions());
+  constexpr std::size_t kMetadataEntries = 2;
+  const std::array<MetadataEntryView, kMetadataEntries> metadata{
+      MetadataEntryView{kDuplicateMetadataKey, "first"},
+      MetadataEntryView{kDuplicateMetadataKey, "second"}};
+  AttributeMaterializationInput channel;
+  channel.domain = AttributeDomain::face;
+  channel.name = kEmptyChannelName;
+  channel.components = 1;
+  channel.values = std::span<const std::int8_t>();
+  channel.offsets = std::span<const index_t>();
+  channel.present = std::span<const std::uint8_t>();
+  channel.metadata = metadata;
+  const MeshMaterializationInput input{
+      std::span<const float>(),
+      TriangleTopologyInput{std::span<const std::uint32_t>()},
+      std::span<const AttributeMaterializationInput>(&channel, 1)};
+  {
+    const auto captured =
+        MaterializeMesh(input, CaptureLimits(), CaptureWork(), execution);
+    Require(captured.mesh.has_value(), "typed empty raw input was rejected");
+    const auto view = captured.mesh->View();
+    Require(view.face_offsets.size() == 1 && view.face_offsets.front() == 0,
+            "empty triangle topology did not derive its sole offset");
+    const auto& retained = view.attributes.front();
+    Require(std::holds_alternative<std::span<const std::int32_t>>(
+                retained.values) &&
+                retained.offsets.has_value() && retained.offsets->empty() &&
+                retained.present.has_value() && retained.present->empty(),
+            "authored empty arrays or signed canonical selector were lost");
+    const auto inspected = InspectMaterializedMesh(
+        *captured.mesh, {kFixtureCountLimit, kRequestBudget}, CaptureWork());
+    Require(inspected.inspection.has_value(), "raw empty inspection failed");
+    const auto issues = inspected.inspection->Issues();
+    constexpr std::size_t kExpectedIssues = 2;
+    Require(
+        issues.size() == kExpectedIssues &&
+            issues.front().code == StorageIssueCode::kAttributeOffsetsEmpty &&
+            issues.back().code == StorageIssueCode::kMetadataDuplicateKey &&
+            issues.back().element == 1,
+        "raw empty or ordered duplicate metadata inspection changed");
+    const auto selected =
+        SelectMeshFaces(*captured.mesh, {}, CaptureLimits(), CaptureWork());
+    Require(selected.status == MaterializationStatus::kInvalidSourceStorage &&
+                selected.diagnostic.storage_issue.has_value() &&
+                selected.diagnostic.storage_issue->code ==
+                    StorageIssueCode::kAttributeOffsetsEmpty,
+            "selection implicitly repaired raw empty rows");
+  }
+  Require(
+      execution.ActiveTrackedPayload() == 0 && execution.ActiveWorkers() == 0,
+      "raw owners left charges or worker slots behind");
+}
+struct StopAfterWorkers {
+  struct Wrapped {
+    allocation::NativeWorkerRecord entry;
+    allocation::NativeWorkerRecord* original = nullptr;
+    std::stop_source* stop = nullptr;
+  };
+  std::array<Wrapped, kWorkerBudget> records;
+  allocation::NativeWorkerBackend original =
+      allocation::DefaultNativeWorkerBackend();
+  std::stop_source stop;
+  std::size_t next = 0;
+  static void Entry(allocation::NativeWorkerRecord& record) noexcept {
+    auto& wrapped = *static_cast<Wrapped*>(record.state);
+    wrapped.original->entry(*wrapped.original);
+    if (wrapped.original->ordinal == 0) wrapped.stop->request_stop();
+  }
+  static std::uintptr_t Launch(allocation::NativeWorkerRecord* record,
+                               void* argument) {
+    auto& state = *static_cast<StopAfterWorkers*>(argument);
+    auto& wrapped = state.records.at(state.next++);
+    wrapped.original = record;
+    wrapped.stop = &state.stop;
+    wrapped.entry = {Entry, &wrapped, record->ordinal};
+    return state.original.launch(&wrapped.entry, state.original.state);
+  }
+  static void Join(std::uintptr_t handle, void* argument) noexcept {
+    auto& state = *static_cast<StopAfterWorkers*>(argument);
+    state.original.join(handle, state.original.state);
+  }
+};
+void SourceDefectPrecedenceCase() {
+  ExecutionContext execution(TestExecutionOptions());
+  constexpr std::size_t kTrianglePositionScalars = 9;
+  constexpr std::size_t kTriangleCornerCount = 3;
+  constexpr std::uint64_t kSignalingNanBits = UINT64_C(0x7ff0000000000001);
+  constexpr std::uint64_t kPostEntryParallelThreshold = 1;
+  std::array<double, kTrianglePositionScalars> positions{};
+  const std::array<std::uint32_t, kTriangleCornerCount> corners{0, 1, 2};
+  std::memcpy(positions.data(), &kSignalingNanBits, sizeof(kSignalingNanBits));
+  const MeshMaterializationInput input{
+      std::span<const double>(positions), TriangleTopologyInput{corners}, {}};
+  auto captured =
+      MaterializeMesh(input, CaptureLimits(), CaptureWork(), execution);
+  Require(captured.mesh.has_value(), "defective source capture failed");
+  auto work = CaptureWork();
+  work.parallel_min_bytes = kPostEntryParallelThreshold;
+  StopAfterWorkers stopping;
+  allocation::TestHooks hooks;
+  hooks.workers = {StopAfterWorkers::Launch, StopAfterWorkers::Join, &stopping};
+  const auto selected =
+      allocation::TestSelectMeshFaces(*captured.mesh, {}, CaptureLimits(), work,
+                                      stopping.stop.get_token(), hooks);
+  Require(
+      selected.status == MaterializationStatus::kInvalidSourceStorage &&
+          selected.diagnostic.storage_issue.has_value() &&
+          selected.diagnostic.storage_issue->code ==
+              StorageIssueCode::kPositionNonfinite &&
+          selected.diagnostic.storage_issue->element == 0 &&
+          selected.execution.launched_workers != 0 &&
+          selected.execution.launched_workers ==
+              selected.execution.joined_workers,
+      "post-entry cancellation concealed an already observed source defect");
+  positions.fill(0);
+  auto valid =
+      MaterializeMesh(input, CaptureLimits(), CaptureWork(), execution);
+  Require(valid.mesh.has_value(), "valid control source capture failed");
+  StopAfterWorkers control;
+  hooks.workers = {StopAfterWorkers::Launch, StopAfterWorkers::Join, &control};
+  const auto canceled = allocation::TestSelectMeshFaces(
+      *valid.mesh, {}, CaptureLimits(), work, control.stop.get_token(), hooks);
+  Require(canceled.status == MaterializationStatus::kCanceled &&
+              !canceled.selection.has_value() &&
+              canceled.execution.launched_workers ==
+                  canceled.execution.joined_workers,
+          "valid source cancellation acquired a source defect diagnostic");
+  Require(execution.ActiveWorkers() == 0,
+          "source-defect precedence left a worker slot retained");
+}
 }  // namespace
 int main() {
   try {
@@ -145,7 +350,11 @@ int main() {
     ScalarCase<std::uint64_t>();
     PositionCase();
     AdmissionCase();
-    std::cout << "Materialization original-request slice passed\n";
+    ValidationCase();
+    BackendExceptionCase();
+    AuthoredEmptyCase();
+    SourceDefectPrecedenceCase();
+    std::cout << "Materialization request and typed capture checks passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;

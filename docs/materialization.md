@@ -3,22 +3,30 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-MATERIALIZATION-001 |
-| Version | 0.1.0 |
-| Status | Contract and declaration candidate; runtime and installed target unavailable |
+| Version | 0.2.0 |
+| Status | Development candidate with native runtime and installed target; Windows allocation profile qualified |
 | Owner | Geometry |
 
-This document specifies the proposed
+This document specifies the
 [`materialization.h`](../include/meshvale/geometry/materialization.h) interface.
-Its declarations have no runtime implementation yet. The intended compiled
-`meshvale::materialization` target depends on Geometry and its shared execution
-interface. Base numerical buffers do not depend on materialization or execution.
+The compiled `meshvale::materialization` target depends on Geometry and its shared
+execution interface. Installed consumers need no Eigen headers. Base numerical
+buffers do not depend on materialization or execution.
+
+The currently admitted nonempty numerical allocation profile is 64-bit Windows
+with MSVC, pinned Eigen 3.4.1, 16-byte default alignment, and Eigen's
+`EIGEN_MALLOC_ALREADY_ALIGNED` flag equal to one. Native and matching MSVC ASan
+requests have been observed on this original allocation route. Other compiled
+profiles, including Linux, remain unqualified and reject nonempty numerical
+capture before an unplanned request. An all-empty numerical capture does not
+need a numerical allocation route; its structural storage remains charged.
 
 `MaterializeMesh` captures complete typed mesh storage into an immutable
 `MaterializedMesh`. `InspectMaterializedMesh` inspects that storage without
 repairing it. `SelectMeshFaces` creates an immutable selection from valid storage,
 with face and corner correspondence. These operations share the
 [execution ledger](execution.md) and use a fresh cancellation token on each call.
-They do not export an ordinary mutable `Mesh` or perform duplicate detection,
+They do not export an ordinary mutable `Mesh` or perform geometric duplicate detection,
 attribute normalization, geometric validation, or repair.
 
 ## Input and canonical storage
@@ -115,7 +123,11 @@ including splitting a single long row.
 
 Worker admission uses the retained shared `WorkerLease`, with caller execution
 when work is small or fewer than two slots are available. There is no competing
-pool. Execution statistics report total leaf jobs planned, workers actually
+pool. The native backend uses the Windows CRT thread launch interface on Windows
+and pthreads on Linux. Explicit Meshvale callable arguments, records, handles,
+failure slots and scratch blocks are charged. Opaque OS thread and CRT runtime
+internals are outside the requested-block ledger. This boundary does not exempt
+explicit Meshvale storage or make the ledger a measure of process memory. Execution statistics report total leaf jobs planned, workers actually
 launched and joined, and jobs actually executed on the caller across all phases.
 They are observations rather than requested worker counts. A returned result has
 equal launched and joined counts. Successful serial and parallel calls produce
@@ -209,8 +221,11 @@ Expected failures return fixed diagnostics and no output owner. Invalid physical
 position or triangle row extents are invalid transport; checked storage extent
 overflow or a count cap is `kLimitExceeded`. A valid raw capture may have many
 storage defects and still succeed. Configuration validation precedes transport
-validation, then checked physical extents/count limits, source admission or
-selection checks, and allocation/work. Cancellation is observed before allocation,
+validation, then checked physical extents/count limits. Selection admits source
+storage before interpreting its row offsets or validating source-dependent
+candidate counts. That admission may require charged inspection scratch before
+selection checks and candidate allocation; it does not construct a partial
+candidate. Cancellation is observed before allocation,
 within bounded long loops and after final joins before publication. An earlier
 configuration or source-validation failure remains that failure. Deterministic
 worker failure slots choose the first source-order failure, independently of
