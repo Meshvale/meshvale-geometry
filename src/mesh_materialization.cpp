@@ -590,6 +590,9 @@ void ScanRange(const WorkSession& session, std::size_t count,
 }
 void SingleIssue(const WorkSession& session, ScanOutput& output,
                  StorageIssueCode code, std::optional<index_t> attribute = {}) {
+  // First-only admission has already finished once an aggregate defect exists.
+  // Do not let a later aggregate's checkpoint replace that established failure.
+  if (output.first_only && output.first) return;
   session.allocation.Checkpoint();
   if (!output.first) output.first = StorageIssue{code, attribute, {}};
   if (!output.first_only) {
