@@ -20,7 +20,9 @@ def main():
                 'shared_execution_leases', 'exact_polygon_triangulation',
                 'triangulation_fraction_oracle', 'checked_attribute_numerics',
                 'eigen_scalar_storage', 'editor_traversal_batch',
-                'charged_materialization'}
+                'charged_materialization', 'materialization_semantics',
+                'materialization_accounting_workers',
+                'materialization_fault_workers'}
     if args.allocation_probe == 'enabled':
         expected.update({'execution_allocation_failure',
                          'attribute_numerics_allocation_failure',

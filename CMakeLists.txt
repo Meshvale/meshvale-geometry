@@ -53,7 +53,9 @@ target_include_directories(meshvale_geometry_attribute_numerics SYSTEM PRIVATE
 # Numerical row workers use the same admitted product scheduler policy.
 target_compile_definitions(meshvale_geometry_attribute_numerics PRIVATE
   EIGEN_MPL2_ONLY EIGEN_DONT_PARALLELIZE EIGEN_FAST_MATH=0)
-add_library(meshvale_geometry_materialization STATIC src/materialization_allocation.cpp)
+add_library(meshvale_geometry_materialization STATIC
+  src/materialization_allocation.cpp src/materialization_workers.cpp
+  src/mesh_materialization.cpp)
 add_library(meshvale::materialization ALIAS meshvale_geometry_materialization)
 set_target_properties(meshvale_geometry_materialization PROPERTIES
   EXPORT_NAME materialization POSITION_INDEPENDENT_CODE ON)
@@ -152,6 +154,20 @@ if(BUILD_TESTING)
     "#include \"eigen_types.h\"\n#include \"eigen_types.h\"\n")
   target_sources(meshvale_geometry PRIVATE "${meshvale_eigen_probe}")
   target_include_directories(meshvale_geometry PRIVATE src)
+  foreach(meshvale_numeric_header IN ITEMS numeric_buffer_internal numeric_request_internal)
+    set(meshvale_numeric_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_numeric_header}_h.cpp")
+    file(WRITE "${meshvale_numeric_probe}"
+      "#include \"${meshvale_numeric_header}.h\"\n#include \"${meshvale_numeric_header}.h\"\n")
+    target_sources(meshvale_geometry PRIVATE "${meshvale_numeric_probe}")
+  endforeach()
+  target_include_directories(meshvale_geometry_materialization PRIVATE src)
+  foreach(meshvale_materialization_header IN ITEMS materialization_allocation
+      materialization_storage materialization_workers materialization_test_internal)
+    set(meshvale_materialization_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_materialization_header}_h.cpp")
+    file(WRITE "${meshvale_materialization_probe}"
+      "#include \"${meshvale_materialization_header}.h\"\n#include \"${meshvale_materialization_header}.h\"\n")
+    target_sources(meshvale_geometry_materialization PRIVATE "${meshvale_materialization_probe}")
+  endforeach()
   target_link_libraries(meshvale_geometry_header_checks PRIVATE meshvale::geometry)
   foreach(meshvale_header IN ITEMS attributes mesh topology execution position_buffer vector_buffer scalar_buffer attribute_numerics materialization)
     set(meshvale_probe "${CMAKE_CURRENT_BINARY_DIR}/${meshvale_header}_h.cpp")
@@ -174,6 +190,33 @@ if(BUILD_TESTING)
   target_include_directories(meshvale_materialization_tests PRIVATE src)
   target_link_libraries(meshvale_materialization_tests PRIVATE meshvale::materialization)
   add_test(NAME charged_materialization COMMAND meshvale_materialization_tests)
+  add_executable(meshvale_materialization_semantic_tests
+    tests/materialization_semantics/main.cpp
+    tests/materialization_semantics/fixture_support.cpp
+    tests/materialization_semantics/exact_ingress.cpp
+    tests/materialization_semantics/selection_inspection.cpp
+    tests/materialization_semantics/raw_defects_limits.cpp)
+  target_link_libraries(meshvale_materialization_semantic_tests PRIVATE meshvale::materialization)
+  add_test(NAME materialization_semantics COMMAND meshvale_materialization_semantic_tests)
+  add_executable(meshvale_materialization_accounting_tests
+    tests/materialization_runtime/public_accounting_workers.cpp)
+  target_link_libraries(meshvale_materialization_accounting_tests PRIVATE meshvale::materialization)
+  add_test(NAME materialization_accounting_workers COMMAND meshvale_materialization_accounting_tests)
+  add_executable(meshvale_materialization_fault_tests
+    tests/materialization_runtime/private_fault_workers.cpp)
+  target_include_directories(meshvale_materialization_fault_tests PRIVATE src)
+  target_link_libraries(meshvale_materialization_fault_tests PRIVATE meshvale::materialization)
+  add_test(NAME materialization_fault_workers COMMAND meshvale_materialization_fault_tests)
+  foreach(meshvale_materialization_test IN ITEMS
+      meshvale_materialization_semantic_tests meshvale_materialization_accounting_tests
+      meshvale_materialization_fault_tests)
+    if(MSVC)
+      target_compile_options(${meshvale_materialization_test} PRIVATE /W4 /WX /fp:strict)
+    else()
+      target_compile_options(${meshvale_materialization_test} PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
+    endif()
+  endforeach()
   add_executable(meshvale_scalar_buffer_tests tests/scalar_buffer.cpp)
   target_link_libraries(meshvale_scalar_buffer_tests PRIVATE meshvale::geometry)
   add_test(NAME eigen_scalar_storage COMMAND meshvale_scalar_buffer_tests)
