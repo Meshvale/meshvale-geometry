@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-MATERIALIZATION-001 |
-| Version | 0.4.0 |
+| Version | 0.5.0 |
 | Status | Development candidate with native runtime and installed target; Windows allocation profile qualified |
 | Owner | Geometry |
 
@@ -214,9 +214,13 @@ Eigen 3.4.1, default alignment 16 and malloc-already-aligned exactly 1. Linux
 admission is restricted to the observed x86_64 LP64 Debug profile: Clang 18.1.3,
 glibc 2.39, libstdc++ release 14/header date 20240908, the same Eigen route and
 default SSE2 vectorization. The compiled numerical target must identify Debug;
-missing configuration markers, NDEBUG, optimization, fast math and extended
-SIMD are unqualified. The observed Linux sanitizer profile combines ASan and
-UBSan; TSan, memory/HW address sanitizers and either ASan or UBSan alone remain
+missing configuration markers, NDEBUG, fast math and extended SIMD are
+unqualified. Plain native and combined ASan/UBSan profiles require unoptimized
+Debug owners. The separately observed TSan profile requires Debug with exactly
+`-fsanitize=thread -O1 -g -fno-omit-frame-pointer` and matching thread-sanitizer
+link inputs. Its compiled optimization fact must agree with that category;
+`-O1` does not enable optimized native or ASan/UBSan profiles. Other optimization
+choices, memory/HW address sanitizers and either ASan or UBSan alone remain
 unqualified. Other detectable Clang instrumentation, including dataflow,
 safe-stack, Scudo, shadow-call-stack, KCFI, sanitizer coverage, XRay, speculative
 load hardening, memory tagging and standalone leak sanitization, is also
@@ -233,12 +237,17 @@ materialization admission policy. Installed consumers use their library's
 compiled profile; their own compiler or Eigen settings cannot change it.
 
 Linux admission also requires the standalone owning CMake build to classify
-its final numerical compile inputs as plain native or ASan plus UBSan. A private
+its final numerical compile inputs as plain native, ASan plus UBSan or the
+distinct optimized TSan profile. A private
 marker must agree with Clang's actual instrumentation features. The classifier
 checks global/Debug, directory, target and both numerical source options and
 definitions, legacy flags, link inputs and IPO/Unity settings. Only the observed
-warning, debug, frame-pointer, no-fast-math and complete ASan/UBSan options and
-the product's numerical definitions are accepted. CFI, LTO, coverage, profile
+warning, debug, frame-pointer, no-fast-math and complete sanitizer options and
+the product's numerical definitions are accepted. Only the TSan category accepts
+`-O1`; it requires positive `-g` information and retained frame pointers, and both
+numerical owners and the thread-runtime link category must agree. Mixed
+sanitizers, debug disabling or aliases, frame-pointer disabling and other
+optimization inputs remain unsupported. CFI, LTO, coverage, profile
 instrumentation, opaque frontend/response options, unknown flags or unresolved
 generator expressions remain unsupported even if no compiler feature bit
 reveals them. Compiler launchers, toolchain/project injections, extra linked
@@ -246,6 +255,13 @@ interfaces and Linux subproject builds cannot certify that closed input set.
 They retain ordinary buffer support and the existing unsupported-profile
 behavior for nonempty charged numerical capture. This marker changes neither
 Eigen's allocator nor the installed interface.
+
+Original numerical request observation is a serial prerequisite. It does not
+establish TSan factory or worker acceptance. The separate mandatory matching
+TSan gate retains all 13 native suites with ordinary replacement-new allocation
+probes disabled, including substantive materialization workers, cancellation,
+partial launch, shared budgets, concurrency and retained ownership. An
+unsupported-profile suite cannot replace that gate.
 
 ### Requested bytes and failure precedence
 

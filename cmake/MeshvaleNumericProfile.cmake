@@ -3,22 +3,51 @@
 set(_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED 0)
 set(_MESHVALE_NUMERIC_PROFILE_NATIVE 1)
 set(_MESHVALE_NUMERIC_PROFILE_ASAN_UBSAN 2)
+set(_MESHVALE_NUMERIC_PROFILE_TSAN 3)
 
-function(meshvale_numeric_classify_tokens result)
+function(meshvale_numeric_classify_tokens result phase)
+  if(NOT phase STREQUAL "COMPILE" AND NOT phase STREQUAL "LINK")
+    set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
+    return()
+  endif()
   set(profile "${_MESHVALE_NUMERIC_PROFILE_NATIVE}")
+  set(optimized FALSE)
+  set(debug FALSE)
+  set(frame_pointers FALSE)
   foreach(option IN LISTS ARGN)
     if(option STREQUAL "-fsanitize=address,undefined" OR
         option STREQUAL "-fsanitize=undefined,address")
+      if(profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}")
+        set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
+        return()
+      endif()
       set(profile "${_MESHVALE_NUMERIC_PROFILE_ASAN_UBSAN}")
-    elseif(NOT option STREQUAL "-g" AND
-        NOT option STREQUAL "-fno-omit-frame-pointer" AND
-        NOT option STREQUAL "-Wall" AND NOT option STREQUAL "-Wextra" AND
+    elseif(option STREQUAL "-fsanitize=thread")
+      if(profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_ASAN_UBSAN}")
+        set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
+        return()
+      endif()
+      set(profile "${_MESHVALE_NUMERIC_PROFILE_TSAN}")
+    elseif(option STREQUAL "-O1" AND phase STREQUAL "COMPILE")
+      set(optimized TRUE)
+    elseif(option STREQUAL "-g")
+      set(debug TRUE)
+    elseif(option STREQUAL "-fno-omit-frame-pointer")
+      set(frame_pointers TRUE)
+    elseif(NOT option STREQUAL "-Wall" AND NOT option STREQUAL "-Wextra" AND
         NOT option STREQUAL "-Wpedantic" AND NOT option STREQUAL "-Werror" AND
         NOT option STREQUAL "-fno-fast-math")
       set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
       return()
     endif()
   endforeach()
+  if((profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}" AND
+      phase STREQUAL "COMPILE" AND
+      (NOT optimized OR NOT debug OR NOT frame_pointers)) OR
+      (NOT profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}" AND optimized))
+    set(${result} "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" PARENT_SCOPE)
+    return()
+  endif()
   set(${result} "${profile}" PARENT_SCOPE)
 endfunction()
 
@@ -110,7 +139,7 @@ function(meshvale_geometry_classify_numeric_build)
       endif()
     endforeach()
     separate_arguments(source_legacy UNIX_COMMAND "${source_flags}")
-    meshvale_numeric_classify_tokens(owner_profile ${common_options}
+    meshvale_numeric_classify_tokens(owner_profile COMPILE ${common_options}
       ${source_options} ${source_legacy})
     meshvale_numeric_definitions_supported(definitions_supported
       ${common_definitions} ${source_definitions} ${debug_definitions})
@@ -132,12 +161,16 @@ function(meshvale_geometry_classify_numeric_build)
   get_property(static_flags TARGET meshvale_geometry PROPERTY STATIC_LIBRARY_FLAGS)
   separate_arguments(legacy_link_options UNIX_COMMAND
     "${target_link_flags} ${target_debug_link_flags} ${static_flags}")
-  meshvale_numeric_classify_tokens(link_profile ${global_link_options}
+  meshvale_numeric_classify_tokens(link_profile LINK ${global_link_options}
     ${target_link_options} ${directory_link_options} ${static_options}
     ${legacy_link_options})
   if(link_profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_UNSUPPORTED}" OR
       (link_profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_ASAN_UBSAN}" AND
-        NOT previous_profile STREQUAL link_profile))
+        NOT previous_profile STREQUAL link_profile) OR
+      (link_profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}" AND
+        NOT previous_profile STREQUAL link_profile) OR
+      (previous_profile STREQUAL "${_MESHVALE_NUMERIC_PROFILE_TSAN}" AND
+        NOT link_profile STREQUAL previous_profile))
     set(supported FALSE)
   endif()
   if(supported)

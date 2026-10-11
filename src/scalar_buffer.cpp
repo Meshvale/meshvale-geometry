@@ -88,13 +88,13 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
     defined(_GLIBCXX_RELEASE) && defined(__GLIBCXX__) &&                      \
     defined(MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD) &&                         \
     defined(MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION) && !defined(NDEBUG) && \
-    !defined(__OPTIMIZE__) && !defined(__FAST_MATH__) &&                      \
-    defined(EIGEN_VECTORIZE_SSE2) && !defined(EIGEN_VECTORIZE_SSE3) &&        \
-    !defined(EIGEN_VECTORIZE_SSSE3) && !defined(EIGEN_VECTORIZE_SSE4_1) &&    \
-    !defined(EIGEN_VECTORIZE_SSE4_2) && !defined(EIGEN_VECTORIZE_AVX) &&      \
-    !defined(EIGEN_VECTORIZE_AVX512) && !defined(EIGEN_DONT_VECTORIZE)
-  // Linux admission is restricted to the observed Debug/native and matching
-  // ASan/UBSan compiler, C++ runtime headers, ABI and default SSE2 profile.
+    !defined(__FAST_MATH__) && defined(EIGEN_VECTORIZE_SSE2) &&               \
+    !defined(EIGEN_VECTORIZE_SSE3) && !defined(EIGEN_VECTORIZE_SSSE3) &&      \
+    !defined(EIGEN_VECTORIZE_SSE4_1) && !defined(EIGEN_VECTORIZE_SSE4_2) &&   \
+    !defined(EIGEN_VECTORIZE_AVX) && !defined(EIGEN_VECTORIZE_AVX512) &&      \
+    !defined(EIGEN_DONT_VECTORIZE)
+  // Each observed Linux Debug instrumentation category owns its optimization
+  // requirement; ordinary native/ASan profiles remain unoptimized.
   constexpr int kQualifiedClangMajorVersion = 18;
   constexpr int kQualifiedClangMinorVersion = 1;
   constexpr int kQualifiedClangPatchVersion = 3;
@@ -105,10 +105,33 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
   constexpr int kQualifiedDebugBuild = 1;
   constexpr int kQualifiedNativeInstrumentation = 1;
   constexpr int kQualifiedAsanUbsanInstrumentation = 2;
+  constexpr int kQualifiedTsanInstrumentation = 3;
+  constexpr int kUnoptimizedBuild = 0;
+  constexpr int kQualifiedTsanOptimization = 1;
+#if defined(__OPTIMIZE__)
+  constexpr int kCompiledOptimization = __OPTIMIZE__;
+#else
+  constexpr int kCompiledOptimization = kUnoptimizedBuild;
+#endif
   constexpr std::size_t kQualifiedLp64Bytes = 8;
+  const bool qualified_instrumentation =
+      (!__has_feature(thread_sanitizer) &&
+       kCompiledOptimization == kUnoptimizedBuild &&
+       ((MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+             kQualifiedNativeInstrumentation &&
+         !__has_feature(address_sanitizer) &&
+         !__has_feature(undefined_behavior_sanitizer)) ||
+        (MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+             kQualifiedAsanUbsanInstrumentation &&
+         __has_feature(address_sanitizer) &&
+         __has_feature(undefined_behavior_sanitizer)))) ||
+      (MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+           kQualifiedTsanInstrumentation &&
+       kCompiledOptimization == kQualifiedTsanOptimization &&
+       __has_feature(thread_sanitizer) && !__has_feature(address_sanitizer) &&
+       !__has_feature(undefined_behavior_sanitizer));
   const bool qualified_sanitizers =
-      !__has_feature(thread_sanitizer) && !__has_feature(memory_sanitizer) &&
-      !__has_feature(hwaddress_sanitizer) &&
+      !__has_feature(memory_sanitizer) && !__has_feature(hwaddress_sanitizer) &&
       !__has_feature(dataflow_sanitizer) && !__has_feature(safe_stack) &&
       !__has_feature(scudo) && !__has_feature(shadow_call_stack) &&
       !__has_feature(kcfi) && !__has_feature(coverage_sanitizer) &&
@@ -117,14 +140,7 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
       !__has_feature(memtag_stack) && !__has_feature(memtag_heap) &&
       !__has_feature(memtag_globals) &&
       (!__has_feature(leak_sanitizer) || __has_feature(address_sanitizer)) &&
-      ((MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
-            kQualifiedNativeInstrumentation &&
-        !__has_feature(address_sanitizer) &&
-        !__has_feature(undefined_behavior_sanitizer)) ||
-       (MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
-            kQualifiedAsanUbsanInstrumentation &&
-        __has_feature(address_sanitizer) &&
-        __has_feature(undefined_behavior_sanitizer)));
+      qualified_instrumentation;
   return qualified_sanitizers &&
          __clang_major__ == kQualifiedClangMajorVersion &&
          __clang_minor__ == kQualifiedClangMinorVersion &&
