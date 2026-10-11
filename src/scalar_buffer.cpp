@@ -106,6 +106,14 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
   const bool qualified_sanitizers =
       !__has_feature(thread_sanitizer) && !__has_feature(memory_sanitizer) &&
       !__has_feature(hwaddress_sanitizer) &&
+      !__has_feature(dataflow_sanitizer) && !__has_feature(safe_stack) &&
+      !__has_feature(scudo) && !__has_feature(shadow_call_stack) &&
+      !__has_feature(kcfi) && !__has_feature(coverage_sanitizer) &&
+      !__has_feature(xray_instrument) &&
+      !__has_feature(speculative_load_hardening) &&
+      !__has_feature(memtag_stack) && !__has_feature(memtag_heap) &&
+      !__has_feature(memtag_globals) &&
+      (!__has_feature(leak_sanitizer) || __has_feature(address_sanitizer)) &&
       (__has_feature(address_sanitizer) ==
        __has_feature(undefined_behavior_sanitizer));
   return qualified_sanitizers &&

@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-MATERIALIZATION-001 |
-| Version | 0.2.0 |
+| Version | 0.3.0 |
 | Status | Development candidate with native runtime and installed target; Windows allocation profile qualified |
 | Owner | Geometry |
 
@@ -13,13 +13,11 @@ The compiled `meshvale::materialization` target depends on Geometry and its shar
 execution interface. Installed consumers need no Eigen headers. Base numerical
 buffers do not depend on materialization or execution.
 
-The currently admitted nonempty numerical allocation profile is 64-bit Windows
-with MSVC, pinned Eigen 3.4.1, 16-byte default alignment, and Eigen's
-`EIGEN_MALLOC_ALREADY_ALIGNED` flag equal to one. Native and matching MSVC ASan
-requests have been observed on this original allocation route. Other compiled
-profiles, including Linux, remain unqualified and reject nonempty numerical
-capture before an unplanned request. An all-empty numerical capture does not
-need a numerical allocation route; its structural storage remains charged.
+Nonempty numerical capture requires an admitted compiled allocation profile;
+the owning [profile contract](#compiled-allocation-profiles) identifies the
+bounded Windows and Linux profiles and remaining runtime qualification gates.
+An all-empty numerical capture does not need a numerical allocation route;
+its structural storage remains charged.
 
 `MaterializeMesh` captures complete typed mesh storage into an immutable
 `MaterializedMesh`. `InspectMaterializedMesh` inspects that storage without
@@ -209,6 +207,8 @@ resize, zero-fill or expression temporaries. Actual old/new overlap remains
 charged; common-ledger rejection or the new-operation cap returns
 `kBudgetExceeded/kRequestBudget`.
 
+### Compiled allocation profiles
+
 Nonempty canonical numerical storage currently admits MSVC x64 with pinned
 Eigen 3.4.1, default alignment 16 and malloc-already-aligned exactly 1. Linux
 admission is restricted to the observed x86_64 LP64 Debug profile: Clang 18.1.3,
@@ -217,7 +217,11 @@ default SSE2 vectorization. The compiled numerical target must identify Debug;
 missing configuration markers, NDEBUG, optimization, fast math and extended
 SIMD are unqualified. The observed Linux sanitizer profile combines ASan and
 UBSan; TSan, memory/HW address sanitizers and either ASan or UBSan alone remain
-unqualified. This admission identifies original numerical request routes; full
+unqualified. Other detectable Clang instrumentation, including dataflow,
+safe-stack, Scudo, shadow-call-stack, KCFI, sanitizer coverage, XRay, speculative
+load hardening, memory tagging and standalone leak sanitization, is also
+unqualified. AddressSanitizer's leak detection remains available. This admission
+identifies original numerical request routes; full
 factory, worker and sanitizer acceptance remains a separate qualification gate.
 
 Other Linux compilers/configurations, macOS, alternate C++ runtime headers and
@@ -227,6 +231,8 @@ subject to the same validation and charged ownership contract. Ordinary generic
 buffers retain their existing Eigen allocations and do not depend on this
 materialization admission policy. Installed consumers use their library's
 compiled profile; their own compiler or Eigen settings cannot change it.
+
+### Requested bytes and failure precedence
 
 `NewRequestedBytes()` observes the operation's current live requested blocks,
 including retained parts and accounting owners. It is not an object-local
