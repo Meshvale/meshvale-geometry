@@ -57,6 +57,46 @@ cmake --install .local/build --config Release --prefix .local/install
 
 Configure `examples/consumer` in a separate build directory with `CMAKE_PREFIX_PATH` set to the absolute installed prefix. The consumer uses `find_package(MeshvaleGeometry CONFIG REQUIRED)` and links `meshvale::geometry`, without source-tree include paths or private coordination access. The package requires C++20 transitively.
 
+### Explicit materialization test profiles
+
+With `BUILD_TESTING=ON`, `MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE`
+accepts `qualified` (the default) or `unsupported`. Choose it from the
+[owning numerical profile contract](materialization.md#compiled-allocation-profiles).
+The selector controls test registration only; it cannot enable a numerical
+allocation profile. A qualified producer runs all four materialization suites,
+including accounting and real-worker fault tests. An unsupported producer runs
+the mandatory rejection and empty-storage suite, which fails if nonempty capture
+unexpectedly succeeds. Other native tests remain registered in both profiles.
+
+The `Release` example above is suitable for the qualified Windows producer.
+The admitted native Linux profile requires the contract's exact Clang `Debug`
+tuple. For other producers, pass
+`-DMESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE=unsupported` when configuring.
+An unqualified producer using the default qualified suite is expected to fail.
+
+`MESHVALE_GEOMETRY_ALLOCATION_PROBE=OFF` disables the three ordinary
+replacement-new fault suites when the runtime is incompatible with those probes,
+such as TSan. It does not disable the substantive materialization worker suites.
+The exact inventories are qualified 16 (13 without probes) and unsupported 13
+(10 without probes). Verify the configured inventory before execution:
+
+```sh
+python scripts/check-native-tests.py --build-dir .local/build --configuration Release --materialization-profile qualified --allocation-probe enabled --compiler-id MSVC
+```
+
+Use the actual configured compiler ID (`MSVC`, `Clang`, `GNU` or `AppleClang`),
+configuration and selected profiles. Admitted Clang CI builds additionally pass
+`--compiler-version 18.1.3`. The checker verifies the CMake cache and generated
+compiler record as well as exact test names.
+
+The [qualified installed example](../examples/materialization-consumer/CMakeLists.txt)
+exercises successful capture against the installed library. The
+[unsupported installed example](../examples/unsupported-materialization-consumer/CMakeLists.txt)
+exercises the public rejection and empty-storage contract against the installed
+library. Configure the appropriate example with the installed prefix and matching
+compiler/runtime flags. Pass its build directory as `--installed-build-dir` to
+the same checker to require its exact single test, then run CTest there too.
+
 `meshvale::geometry` is a compiled static library with position-independent code.
 Its public target supplies C++20 and include directories; link it for storage and
 topology operations rather than using headers alone. The same package installs the

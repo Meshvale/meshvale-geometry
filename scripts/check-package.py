@@ -96,10 +96,13 @@ def inspect(path):
                      "src/materialization_workers.cpp", "src/materialization_test_internal.h",
                      "src/numeric_buffer_internal.h", "src/numeric_request_internal.h",
                      "docs/materialization.md", "tests/materialization.cpp",
+                     "cmake/MeshvaleNumericProfile.cmake",
+                     "tests/unsupported_materialization_profile.cpp",
                      "tests/materialization_runtime/public_accounting_workers.cpp",
                      "tests/materialization_runtime/private_fault_workers.cpp",
                      "examples/materialization-consumer/CMakeLists.txt",
-                     "examples/materialization-consumer/main.cpp"]:
+                     "examples/materialization-consumer/main.cpp",
+                     "examples/unsupported-materialization-consumer/CMakeLists.txt"]:
             assert name in names, name
         for name in ["fixture_support.h", "fixture_support.cpp", "main.cpp",
                      "exact_ingress.cpp", "selection_inspection.cpp", "raw_defects_limits.cpp"]:
