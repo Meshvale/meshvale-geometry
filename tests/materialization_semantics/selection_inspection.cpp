@@ -4,9 +4,13 @@
 #include <meshvale/geometry/materialization.h>
 #include <meshvale/geometry/mesh.h>
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <optional>
+#include <span>
+#include <string_view>
 #include <variant>
 
 #include "fixture_support.h"

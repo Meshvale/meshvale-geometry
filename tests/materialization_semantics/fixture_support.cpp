@@ -4,6 +4,7 @@
 #include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/materialization.h>
 
+#include <cstdint>
 #include <stdexcept>
 namespace materialization_test {
 namespace {
