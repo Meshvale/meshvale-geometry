@@ -430,6 +430,59 @@ void CanceledEarlierPrefixCase() {
           execution.ActiveWorkers() == 0,
       "diagnostic prefix finalization retained new requests or worker slots");
 }
+void CanceledCallerRangeCase() {
+  constexpr std::size_t kCallerOnlyBudget = 1;
+  auto options = TestExecutionOptions();
+  options.worker_budget = kCallerOnlyBudget;
+  ExecutionContext execution(options);
+  constexpr std::size_t kFourVertexScalars = 12;
+  constexpr std::size_t kTriangleCornerCount = 3;
+  constexpr std::size_t kDefectVertex = 2;
+  constexpr std::uint64_t kSignalingNanBits = UINT64_C(0x7ff0000000000001);
+  constexpr std::uint64_t kTwoVertexPartitionBytes = 48;
+  constexpr std::uint64_t kSourceParallelThreshold = 1;
+  std::array<double, kFourVertexScalars> positions{};
+  std::memcpy(positions.data() + kDefectVertex * kVector3Components,
+              &kSignalingNanBits, sizeof(kSignalingNanBits));
+  const std::array<std::uint32_t, kTriangleCornerCount> corners{0, 1, 2};
+  const MeshMaterializationInput input{
+      std::span<const double>(positions), TriangleTopologyInput{corners}, {}};
+  const auto captured =
+      MaterializeMesh(input, CaptureLimits(), CaptureWork(), execution);
+  Require(captured.mesh.has_value(), "caller-range source capture failed");
+  const auto retained_bytes = execution.ActiveTrackedPayload();
+  auto work = CaptureWork();
+  work.parallel_min_bytes = kSourceParallelThreshold;
+  work.partition_bytes = kTwoVertexPartitionBytes;
+  work.cancellation_block_scalars = kCallerOnlyBudget;
+  struct StopOnIssue {
+    std::stop_source stop;
+    std::size_t calls = 0;
+  } stopping;
+  allocation::TestHooks hooks;
+  hooks.source_issue_observer_state = &stopping;
+  hooks.source_issue_observer = [](const StorageIssue&,
+                                   void* argument) noexcept {
+    auto& state = *static_cast<StopOnIssue*>(argument);
+    ++state.calls;
+    state.stop.request_stop();
+  };
+  const auto selected =
+      allocation::TestSelectMeshFaces(*captured.mesh, {}, CaptureLimits(), work,
+                                      stopping.stop.get_token(), hooks);
+  Require(selected.status == MaterializationStatus::kInvalidSourceStorage &&
+              selected.diagnostic.storage_issue.has_value() &&
+              selected.diagnostic.storage_issue->code ==
+                  StorageIssueCode::kPositionNonfinite &&
+              selected.diagnostic.storage_issue->element == kDefectVertex &&
+              selected.execution.launched_workers == 0 &&
+              selected.execution.joined_workers == 0 &&
+              selected.execution.caller_jobs != 0 && stopping.calls == 1,
+          "a theoretical partition lost the actual caller-range source defect");
+  Require(execution.ActiveTrackedPayload() == retained_bytes &&
+              execution.ActiveWorkers() == 0,
+          "caller diagnostic finalization left new charges or slots behind");
+}
 }  // namespace
 int main() {
   try {
@@ -447,6 +500,7 @@ int main() {
     AuthoredEmptyCase();
     SourceDefectPrecedenceCase();
     CanceledEarlierPrefixCase();
+    CanceledCallerRangeCase();
     std::cout << "Materialization request and typed capture checks passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

@@ -499,6 +499,7 @@ struct ScanBlock {
       : issues(Allocator<StorageIssue>(allocation)) {}
   ChargedVector<StorageIssue> issues;
   std::optional<StorageIssue> first;
+  std::size_t dispatched_end = 0;
 };
 struct ScanOutput {
   ScanOutput(const AllocationContext& allocation, std::size_t maximum,
@@ -516,10 +517,15 @@ struct IssueSink {
   std::atomic<std::size_t>& count;
   std::size_t maximum;
   bool first_only;
+  const TestHooks* hooks = nullptr;
   void Add(StorageIssueCode code, std::optional<index_t> attribute = {},
            std::optional<index_t> element = {}) {
     StorageIssue issue{code, attribute, element};
-    if (!block.first) block.first = issue;
+    if (!block.first) {
+      block.first = issue;
+      if (first_only && hooks && hooks->source_issue_observer)
+        hooks->source_issue_observer(issue, hooks->source_issue_observer_state);
+    }
     if (first_only) return;
     auto current = count.load(std::memory_order_relaxed);
     do {
@@ -553,7 +559,8 @@ void ScanRange(const WorkSession& session, std::size_t count,
     std::span<ScanBlock> blocks;
     std::atomic<std::size_t>& total;
     ScanOutput& output;
-  } job{count, jobs, check, state, blocks, total, output};
+    const TestHooks& hooks;
+  } job{count, jobs, check, state, blocks, total, output, session.hooks};
   auto retain_first = [&] {
     for (const auto& block : blocks)
       if (!output.first && block.first) output.first = block.first;
@@ -569,8 +576,9 @@ void ScanRange(const WorkSession& session, std::size_t count,
           const auto ordinal = begin < leading
                                    ? begin / (quotient + 1)
                                    : remainder + (begin - leading) / quotient;
+          job.blocks[ordinal].dispatched_end = end;
           IssueSink sink{job.blocks[ordinal], job.total, job.output.maximum,
-                         job.output.first_only};
+                         job.output.first_only, &job.hooks};
           job.check(job.state, begin, end, sink);
         },
         &job);
@@ -584,10 +592,9 @@ void ScanRange(const WorkSession& session, std::size_t count,
     while (known_block < blocks.size() && !blocks[known_block].first)
       ++known_block;
     if (known_block == blocks.size()) throw;
-    const auto quotient = count / jobs;
-    const auto remainder = count % jobs;
-    const auto prefix_end =
-        (known_block + 1) * quotient + std::min(known_block + 1, remainder);
+    // The caller fallback may dispatch (0,count) despite multiple planned
+    // jobs, so only the recorded actual range bounds certify prefix coverage.
+    const auto prefix_end = blocks[known_block].dispatched_end;
     struct SourceCompletion {
       const WorkSession& session;
       explicit SourceCompletion(const WorkSession& session) : session(session) {
@@ -627,7 +634,12 @@ void SingleIssue(const WorkSession& session, ScanOutput& output,
   // Do not let a later aggregate's checkpoint replace that established failure.
   if (output.first_only && output.first) return;
   session.allocation.Checkpoint();
-  if (!output.first) output.first = StorageIssue{code, attribute, {}};
+  if (!output.first) {
+    output.first = StorageIssue{code, attribute, {}};
+    if (output.first_only && session.hooks.source_issue_observer)
+      session.hooks.source_issue_observer(
+          *output.first, session.hooks.source_issue_observer_state);
+  }
   if (!output.first_only) {
     if (output.issues.size() >= output.maximum)
       Fail(MaterializationStatus::kLimitExceeded,

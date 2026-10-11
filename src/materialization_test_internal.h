@@ -19,6 +19,10 @@ struct TestHooks {
   AllocationBackend allocation = DefaultAllocationBackend();
   NativeWorkerBackend workers = DefaultNativeWorkerBackend();
   MaterializationExecutionStats* execution_observer = nullptr;
+  // First-only source admission observation. Worker callbacks must be thread
+  // safe, nonallocating and noexcept; state lives until the synchronous return.
+  void (*source_issue_observer)(const StorageIssue&, void*) noexcept = nullptr;
+  void* source_issue_observer_state = nullptr;
 };
 [[nodiscard]] MeshMaterializationResult TestMaterializeMesh(
     const MeshMaterializationInput& input,
