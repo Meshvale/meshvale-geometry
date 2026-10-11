@@ -29,6 +29,8 @@ target_include_directories(meshvale_geometry SYSTEM PRIVATE
 target_compile_definitions(meshvale_geometry PRIVATE
   EIGEN_MPL2_ONLY EIGEN_DONT_PARALLELIZE EIGEN_FAST_MATH=0
   MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD=$<IF:$<CONFIG:Debug>,1,0>)
+include(cmake/MeshvaleNumericProfile.cmake)
+cmake_language(DEFER CALL meshvale_geometry_classify_numeric_build)
 target_include_directories(meshvale_geometry PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)

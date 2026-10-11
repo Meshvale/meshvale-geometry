@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | ID | MESHVALE-MATERIALIZATION-001 |
-| Version | 0.3.0 |
+| Version | 0.4.0 |
 | Status | Development candidate with native runtime and installed target; Windows allocation profile qualified |
 | Owner | Geometry |
 
@@ -231,6 +231,21 @@ subject to the same validation and charged ownership contract. Ordinary generic
 buffers retain their existing Eigen allocations and do not depend on this
 materialization admission policy. Installed consumers use their library's
 compiled profile; their own compiler or Eigen settings cannot change it.
+
+Linux admission also requires the standalone owning CMake build to classify
+its final numerical compile inputs as plain native or ASan plus UBSan. A private
+marker must agree with Clang's actual instrumentation features. The classifier
+checks global/Debug, directory, target and both numerical source options and
+definitions, legacy flags, link inputs and IPO/Unity settings. Only the observed
+warning, debug, frame-pointer, no-fast-math and complete ASan/UBSan options and
+the product's numerical definitions are accepted. CFI, LTO, coverage, profile
+instrumentation, opaque frontend/response options, unknown flags or unresolved
+generator expressions remain unsupported even if no compiler feature bit
+reveals them. Compiler launchers, toolchain/project injections, extra linked
+interfaces and Linux subproject builds cannot certify that closed input set.
+They retain ordinary buffer support and the existing unsupported-profile
+behavior for nonempty charged numerical capture. This marker changes neither
+Eigen's allocator nor the installed interface.
 
 ### Requested bytes and failure precedence
 

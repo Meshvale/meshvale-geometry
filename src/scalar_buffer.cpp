@@ -84,13 +84,14 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
 #if defined(_WIN64) && defined(_MSC_VER)
   // Preserve the independently observed MSVC x64 cohort.
   return true;
-#elif defined(__GLIBC__) && defined(__GLIBC_MINOR__) &&                    \
-    defined(_GLIBCXX_RELEASE) && defined(__GLIBCXX__) &&                   \
-    defined(MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD) && !defined(NDEBUG) &&  \
-    !defined(__OPTIMIZE__) && !defined(__FAST_MATH__) &&                   \
-    defined(EIGEN_VECTORIZE_SSE2) && !defined(EIGEN_VECTORIZE_SSE3) &&     \
-    !defined(EIGEN_VECTORIZE_SSSE3) && !defined(EIGEN_VECTORIZE_SSE4_1) && \
-    !defined(EIGEN_VECTORIZE_SSE4_2) && !defined(EIGEN_VECTORIZE_AVX) &&   \
+#elif defined(__GLIBC__) && defined(__GLIBC_MINOR__) &&                       \
+    defined(_GLIBCXX_RELEASE) && defined(__GLIBCXX__) &&                      \
+    defined(MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD) &&                         \
+    defined(MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION) && !defined(NDEBUG) && \
+    !defined(__OPTIMIZE__) && !defined(__FAST_MATH__) &&                      \
+    defined(EIGEN_VECTORIZE_SSE2) && !defined(EIGEN_VECTORIZE_SSE3) &&        \
+    !defined(EIGEN_VECTORIZE_SSSE3) && !defined(EIGEN_VECTORIZE_SSE4_1) &&    \
+    !defined(EIGEN_VECTORIZE_SSE4_2) && !defined(EIGEN_VECTORIZE_AVX) &&      \
     !defined(EIGEN_VECTORIZE_AVX512) && !defined(EIGEN_DONT_VECTORIZE)
   // Linux admission is restricted to the observed Debug/native and matching
   // ASan/UBSan compiler, C++ runtime headers, ABI and default SSE2 profile.
@@ -102,6 +103,8 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
   constexpr int kQualifiedLibstdcxxRelease = 14;
   constexpr long kQualifiedLibstdcxxDate = 20240908;
   constexpr int kQualifiedDebugBuild = 1;
+  constexpr int kQualifiedNativeInstrumentation = 1;
+  constexpr int kQualifiedAsanUbsanInstrumentation = 2;
   constexpr std::size_t kQualifiedLp64Bytes = 8;
   const bool qualified_sanitizers =
       !__has_feature(thread_sanitizer) && !__has_feature(memory_sanitizer) &&
@@ -114,8 +117,14 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
       !__has_feature(memtag_stack) && !__has_feature(memtag_heap) &&
       !__has_feature(memtag_globals) &&
       (!__has_feature(leak_sanitizer) || __has_feature(address_sanitizer)) &&
-      (__has_feature(address_sanitizer) ==
-       __has_feature(undefined_behavior_sanitizer));
+      ((MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+            kQualifiedNativeInstrumentation &&
+        !__has_feature(address_sanitizer) &&
+        !__has_feature(undefined_behavior_sanitizer)) ||
+       (MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+            kQualifiedAsanUbsanInstrumentation &&
+        __has_feature(address_sanitizer) &&
+        __has_feature(undefined_behavior_sanitizer)));
   return qualified_sanitizers &&
          __clang_major__ == kQualifiedClangMajorVersion &&
          __clang_minor__ == kQualifiedClangMinorVersion &&
