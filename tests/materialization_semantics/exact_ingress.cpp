@@ -19,10 +19,6 @@ constexpr std::size_t kScalarEncodingCount = 7;
 constexpr std::size_t kSignedIngressCount = 2;
 constexpr std::uint32_t kSingleComponent = 1;
 constexpr std::uint64_t kInspectionIssueCap = 64;
-template <class T, std::size_t N>
-std::span<const T> Read(const std::array<T, N>& values) {
-  return values;
-}
 void ScalarEncodings() {
   const std::array<double, 12> positions{0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0};
   const std::array<index_t, 2> offsets{0, 4};

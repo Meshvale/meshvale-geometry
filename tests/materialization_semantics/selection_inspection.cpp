@@ -27,10 +27,6 @@ constexpr std::size_t kNormalsAttribute = 4;
 constexpr std::size_t kMaterialAttribute = 5;
 constexpr std::size_t kFaceRaggedAttribute = 6;
 constexpr std::size_t kCornerRaggedAttribute = 7;
-template <class T, std::size_t N>
-std::span<const T> Read(const std::array<T, N>& values) {
-  return values;
-}
 void DescriptorsEqual(const AttributeReadView& actual,
                       const AttributeReadView& source) {
   Require(actual.domain == source.domain && actual.name == source.name &&

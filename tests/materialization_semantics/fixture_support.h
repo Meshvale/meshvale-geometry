@@ -24,6 +24,11 @@ MeshInspection Inspect(const MaterializedMesh& source,
 void ExactIngress();
 void SelectionValues();
 void RawDefectsAndLimits();
+
+template <class T, std::size_t N>
+std::span<const T> Read(const std::array<T, N>& values) {
+  return values;
+}
 template <class T>
 void RequireBits(std::span<const T> actual, std::span<const T> expected,
                  const char* message) {

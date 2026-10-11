@@ -18,10 +18,6 @@ namespace {
 constexpr std::uint64_t kExpectedIssueCount = 8;
 constexpr std::uint64_t kOneFewerIssue = kExpectedIssueCount - 1;
 constexpr AttributeDomain kForeignDomain = static_cast<AttributeDomain>(255);
-template <class T, std::size_t N>
-std::span<const T> Read(const std::array<T, N>& values) {
-  return values;
-}
 void RequireFailure(const MeshMaterializationResult& result,
                     MaterializationStatus status,
                     MaterializationDiagnosticCode diagnostic) {
