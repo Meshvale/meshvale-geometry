@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Private-seam proof consumer; no global or thread-local production hooks.
+#include <meshvale/geometry/attributes.h>
 #include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/execution.h>
 #include <meshvale/geometry/materialization.h>

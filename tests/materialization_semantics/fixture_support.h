@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 #ifndef MESHVALE_TEST_MATERIALIZATION_FIXTURE_SUPPORT_H_
 #define MESHVALE_TEST_MATERIALIZATION_FIXTURE_SUPPORT_H_
+#include <meshvale/geometry/attributes.h>
 #include <meshvale/geometry/editable_mesh.h>
 #include <meshvale/geometry/materialization.h>
 
