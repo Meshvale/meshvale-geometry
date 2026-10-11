@@ -35,6 +35,37 @@ constexpr std::size_t kWorkerBudget = 2;
 constexpr std::size_t kMinimumParallelVertices = 1;
 constexpr std::size_t kScalarCount = 7;
 constexpr std::size_t kPositionRows = 3;
+constexpr std::string_view kSuiteName = "charged_materialization";
+constexpr std::string_view kPhaseField = " phase=";
+constexpr std::string_view kStateField = " state=";
+constexpr std::string_view kBeginState = "begin";
+constexpr std::string_view kEndState = "end";
+constexpr std::string_view kMainPhase = "main-entry";
+constexpr std::string_view kFloatScalarPhase = "float-scalar";
+constexpr std::string_view kDoubleScalarPhase = "double-scalar";
+constexpr std::string_view kInt32ScalarPhase = "int32-scalar";
+constexpr std::string_view kUint8ScalarPhase = "uint8-scalar";
+constexpr std::string_view kUint16ScalarPhase = "uint16-scalar";
+constexpr std::string_view kUint32ScalarPhase = "uint32-scalar";
+constexpr std::string_view kUint64ScalarPhase = "uint64-scalar";
+constexpr std::string_view kPositionPhase = "position";
+constexpr std::string_view kAdmissionPhase = "admission";
+constexpr std::string_view kValidationPhase = "validation";
+constexpr std::string_view kBackendExceptionPhase = "backend-exception";
+constexpr std::string_view kAuthoredEmptyPhase = "authored-empty";
+constexpr std::string_view kSourceDefectPhase = "source-defect-precedence";
+constexpr std::string_view kCanceledEarlierPhase = "canceled-earlier-prefix";
+constexpr std::string_view kCanceledCallerPhase = "canceled-caller-range";
+void PrintPhase(std::string_view phase, std::string_view state) {
+  std::cout << kSuiteName << kPhaseField << phase << kStateField << state
+            << '\n'
+            << std::flush;
+}
+void RunPhase(std::string_view phase, void (*run)()) {
+  PrintPhase(phase, kBeginState);
+  run();
+  PrintPhase(phase, kEndState);
+}
 ExecutionOptions TestExecutionOptions() {
   return {.worker_budget = kWorkerBudget,
           .minimum_parallel_vertices = kMinimumParallelVertices,
@@ -486,23 +517,25 @@ void CanceledCallerRangeCase() {
 }
 }  // namespace
 int main() {
+  PrintPhase(kMainPhase, kBeginState);
   try {
-    ScalarCase<float>();
-    ScalarCase<double>();
-    ScalarCase<std::int32_t>();
-    ScalarCase<std::uint8_t>();
-    ScalarCase<std::uint16_t>();
-    ScalarCase<std::uint32_t>();
-    ScalarCase<std::uint64_t>();
-    PositionCase();
-    AdmissionCase();
-    ValidationCase();
-    BackendExceptionCase();
-    AuthoredEmptyCase();
-    SourceDefectPrecedenceCase();
-    CanceledEarlierPrefixCase();
-    CanceledCallerRangeCase();
+    RunPhase(kFloatScalarPhase, ScalarCase<float>);
+    RunPhase(kDoubleScalarPhase, ScalarCase<double>);
+    RunPhase(kInt32ScalarPhase, ScalarCase<std::int32_t>);
+    RunPhase(kUint8ScalarPhase, ScalarCase<std::uint8_t>);
+    RunPhase(kUint16ScalarPhase, ScalarCase<std::uint16_t>);
+    RunPhase(kUint32ScalarPhase, ScalarCase<std::uint32_t>);
+    RunPhase(kUint64ScalarPhase, ScalarCase<std::uint64_t>);
+    RunPhase(kPositionPhase, PositionCase);
+    RunPhase(kAdmissionPhase, AdmissionCase);
+    RunPhase(kValidationPhase, ValidationCase);
+    RunPhase(kBackendExceptionPhase, BackendExceptionCase);
+    RunPhase(kAuthoredEmptyPhase, AuthoredEmptyCase);
+    RunPhase(kSourceDefectPhase, SourceDefectPrecedenceCase);
+    RunPhase(kCanceledEarlierPhase, CanceledEarlierPrefixCase);
+    RunPhase(kCanceledCallerPhase, CanceledCallerRangeCase);
     std::cout << "Materialization request and typed capture checks passed\n";
+    PrintPhase(kMainPhase, kEndState);
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';
     return 1;
