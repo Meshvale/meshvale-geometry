@@ -22,6 +22,8 @@ def validate_instrumentation(arguments, profile):
     assert not any(arg.startswith("@") or arg == "--config" or arg.startswith("--config=")
                    for arg in arguments), "Opaque response/config inputs cannot prove owner instrumentation"
     assert "-Xclang" not in arguments, "Opaque frontend inputs cannot prove owner instrumentation"
+    assert not any(arg.startswith("--optimize") for arg in arguments), \
+        "Unclassified optimization aliases cannot prove owner instrumentation"
     sanitizer_flags = [arg for arg in arguments if arg.startswith("-fsanitize=")]
     if profile in ("asan-ubsan", "tsan"):
         features = set().union(*(set(f.split("=", 1)[1].split(",")) for f in sanitizer_flags))
