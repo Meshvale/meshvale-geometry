@@ -16,6 +16,12 @@ DELETIONS = {"delete", "delete-array", "delete-sized", "delete-array-sized",
              "delete-array-sized-aligned"}
 PHASES = {"calibration", "seed", "seed-destroy", "admitted", "construct",
           "destroy", "owner-freed", "lease-freed", "denied"}
+COMPILED_PROFILES = {"native": 1, "asan-ubsan": 2, "tsan": 3}
+UNSUPPORTED_COMPILED_PROFILE = 0
+CONTROL_MODES = {"control", "seed", "seed-denied"}
+NUMERIC_INSTRUMENTATION_MACRO = "MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION"
+EXPECTED_COMPILED_PROFILE_KEY = "expected_compiled_profile"
+EXPECTED_COMPILED_PROFILE_OPTION = "--expected-compiled-profile"
 
 def macro_int(macros, name):
     seen = set()
@@ -56,11 +62,15 @@ def parse(text):
     assert profile is not None and sources is not None
     return profile, sources, cases
 
-def verify(text, owners):
+def verify(text, owners, expected_compiled_profile):
     profile, sources, cases = parse(text)
     assert profile[2] == owners["profile"] and profile[3] == owners["revision"]
     assert profile[5] == ("ASAN=1" if profile[2] == "asan-ubsan" else "ASAN=0")
-    assert profile[2] in {"native", "asan-ubsan", "tsan"}, "Unknown observation profile"
+    assert profile[2] in COMPILED_PROFILES, "Unknown observation profile"
+    assert expected_compiled_profile in {UNSUPPORTED_COMPILED_PROFILE, *COMPILED_PROFILES.values()}, \
+        "Unknown expected compiled profile"
+    assert expected_compiled_profile in {UNSUPPORTED_COMPILED_PROFILE, COMPILED_PROFILES[profile[2]]}, \
+        "Expected compiled category differs from observation profile"
     assert profile[6] == ("TSAN=1" if profile[2] == "tsan" else "TSAN=0")
     assert sources == [owners["owners"]["scalar_buffer"]["source_sha256"],
                        owners["owners"]["vector_buffer"]["source_sha256"],
@@ -75,6 +85,8 @@ def verify(text, owners):
             validator = runpy.run_path(str(Path(__file__).with_name("capture-profile.py")))
             validator["validate_instrumentation"](record["original_arguments"], "tsan")
         macros = record["macros"]
+        assert macro_int(macros, NUMERIC_INSTRUMENTATION_MACRO) == expected_compiled_profile, \
+            "Compiled owner category differs from explicit expectation"
         assert tuple(macro_int(macros, k) for k in ("EIGEN_WORLD_VERSION", "EIGEN_MAJOR_VERSION", "EIGEN_MINOR_VERSION")) == (3, 4, 1)
         assert macro_int(macros, "__linux__") == 1 and macro_int(macros, "__LP64__") == 1
         routes.append((macro_int(macros, "EIGEN_DEFAULT_ALIGN_BYTES"), macro_int(macros, "EIGEN_MALLOC_ALREADY_ALIGNED")))
@@ -86,8 +98,13 @@ def verify(text, owners):
     actual = [(c["shape"], c["mode"], c["count"]) for c in cases if c["shape"] in SHAPES]
     assert len(actual) == len(set(actual)) and set(actual) == expected
     assert len(cases) == len(expected) + 3
-    if profile[2] == "tsan":
-        assert all(case["qualified"] == 0 for case in cases), "This prerequisite must preserve unqualified TSan admission"
+    for case in cases:
+        if case["shape"] in SHAPES:
+            assert case["qualified"] == int(expected_compiled_profile != UNSUPPORTED_COMPILED_PROFILE), \
+                "Numerical plan qualification differs from explicit compiled category"
+        else:
+            assert case["mode"] in CONTROL_MODES and case["qualified"] == 0, \
+                "Control case must retain its unqualified placeholder"
     seed_case = next(c for c in cases if c["mode"] == "seed")
     seed = seed_case["impl"]
     assert seed > 0
@@ -218,6 +235,7 @@ def verify(text, owners):
     assert sum(c["mode"] == "seed-denied" for c in cases) == 1
     return {"profile": profile, "sources": sources, "compiled_alignment": alignment,
             "compiled_malloc_already_aligned": aligned, "cases": report,
+            EXPECTED_COMPILED_PROFILE_KEY: expected_compiled_profile,
             "original_request_plan_correspondence": True, "public_factory_admission_tested": False,
             "observer_modifies_production_predicate": False,
             "real_worker_tsan_qualified": False,
@@ -228,8 +246,13 @@ if __name__ == "__main__":
     parser.add_argument("trace", type=Path)
     parser.add_argument("owner_profile", type=Path)
     parser.add_argument("report", type=Path)
+    parser.add_argument(EXPECTED_COMPILED_PROFILE_OPTION, type=int,
+                        choices=(UNSUPPORTED_COMPILED_PROFILE, *COMPILED_PROFILES.values()),
+                        required=True)
     args = parser.parse_args()
-    result = verify(args.trace.read_text(encoding="utf-8"), json.loads(args.owner_profile.read_text(encoding="utf-8")))
+    result = verify(args.trace.read_text(encoding="utf-8"),
+                    json.loads(args.owner_profile.read_text(encoding="utf-8")),
+                    args.expected_compiled_profile)
     with args.report.open("x", encoding="utf-8") as output:
         output.write(json.dumps(result, indent=2) + "\n")
     print("Verified", len(result["cases"]), "original request/admission cases")

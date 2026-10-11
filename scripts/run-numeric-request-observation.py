@@ -19,6 +19,13 @@ PROFILE_NATIVE = "native"
 PROFILE_ASAN_UBSAN = "asan-ubsan"
 PROFILE_TSAN = "tsan"
 PROFILES = (PROFILE_NATIVE, PROFILE_ASAN_UBSAN, PROFILE_TSAN)
+EXPECTED_COMPILED_PROFILES = {
+    PROFILE_NATIVE: 1,
+    PROFILE_ASAN_UBSAN: 2,
+    PROFILE_TSAN: 3,
+}
+EXPECTED_COMPILED_PROFILE_OPTION = "--expected-compiled-profile"
+EXPECTED_COMPILED_PROFILE_KEY = "expected_compiled_profile"
 SANITIZER_FLAGS = {
     PROFILE_ASAN_UBSAN: ("-fsanitize=address,undefined -fno-omit-frame-pointer",
                         "-fsanitize=address,undefined"),
@@ -46,6 +53,7 @@ def main():
     parser.add_argument("--revision", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    expected_compiled_profile = EXPECTED_COMPILED_PROFILES[args.profile]
     repository = Path(__file__).resolve().parents[1]
     assert platform.system() == "Linux" and platform.machine() == "x86_64"
     revision = subprocess.check_output(
@@ -108,6 +116,7 @@ def main():
                 destination.write_bytes(members.extractfile(member).read())
     source_files = manifest(source)
     write_json("inputs.json", {"revision": revision, "profile": args.profile,
+               EXPECTED_COMPILED_PROFILE_KEY: expected_compiled_profile,
                "tree": subprocess.check_output(["git", "show", "-s", "--format=%T", revision],
                                               cwd=repository, text=True).strip(),
                "archive_sha256": digest(output / "source.tar"), "files": source_files})
@@ -195,7 +204,8 @@ def main():
     run("observer-execute", [executable], timeout=OBSERVATION_TIMEOUT_SECONDS)
     run("observer-check", [sys.executable, observer_source / "check-trace.py",
         output / "observer-execute.stdout", owner_profile / "profile.json",
-        output / "request-report.json"])
+        output / "request-report.json", EXPECTED_COMPILED_PROFILE_OPTION,
+        str(expected_compiled_profile)])
     assert manifest(source) == source_files and manifest(prefix) == prefix_files
     assert manifest(dependency_source) == dependency_files and digest(dependency_archive) == dependency_hash
     files = [{"path": path.relative_to(output).as_posix(), "bytes": path.stat().st_size,
@@ -208,6 +218,7 @@ def main():
         files.append({"path": path.relative_to(output).as_posix(),
                       "bytes": path.stat().st_size, "sha256": digest(path)})
     write_json("evidence-index.json", {"revision": revision, "profile": args.profile,
+        EXPECTED_COMPILED_PROFILE_KEY: expected_compiled_profile,
         "files": files, "scope": "Original numerical request observation prerequisite; public factory/profile admission and real-worker TSan remain separate"})
     print("Original numerical observation completed; production profile admission remains separate")
     return 0
