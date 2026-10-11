@@ -68,11 +68,12 @@ bool numeric_detail::QualifiedRequestProfile() noexcept {
   constexpr int kQualifiedEigenMajorVersion = 4;
   constexpr int kQualifiedEigenMinorVersion = 1;
   constexpr int kQualifiedDefaultAlignment = 16;
+  constexpr int kQualifiedMallocAlreadyAligned = 1;
   return EIGEN_WORLD_VERSION == kQualifiedEigenWorldVersion &&
          EIGEN_MAJOR_VERSION == kQualifiedEigenMajorVersion &&
          EIGEN_MINOR_VERSION == kQualifiedEigenMinorVersion &&
          EIGEN_DEFAULT_ALIGN_BYTES == kQualifiedDefaultAlignment &&
-         EIGEN_MALLOC_ALREADY_ALIGNED;
+         EIGEN_MALLOC_ALREADY_ALIGNED == kQualifiedMallocAlreadyAligned;
 #else
   return false;
 #endif
