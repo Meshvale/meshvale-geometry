@@ -149,6 +149,15 @@ endif()
 
 include(CTest)
 if(BUILD_TESTING)
+  set(MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE "qualified" CACHE STRING
+    "Expected materialization capability: qualified or unsupported")
+  set_property(CACHE MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE PROPERTY
+    STRINGS qualified unsupported)
+  if(NOT MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE STREQUAL "qualified"
+      AND NOT MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE STREQUAL "unsupported")
+    message(FATAL_ERROR
+      "MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE must be qualified or unsupported")
+  endif()
   option(MESHVALE_GEOMETRY_ALLOCATION_PROBE
     "Build ordinary replacement-new allocation failure tests (disable for TSan)" ON)
   add_library(meshvale_geometry_header_checks OBJECT)
@@ -189,30 +198,43 @@ if(BUILD_TESTING)
   add_executable(meshvale_attribute_numerics_tests tests/attribute_numerics.cpp)
   target_link_libraries(meshvale_attribute_numerics_tests PRIVATE meshvale::attribute_numerics)
   add_test(NAME checked_attribute_numerics COMMAND meshvale_attribute_numerics_tests)
-  add_executable(meshvale_materialization_tests tests/materialization.cpp)
-  target_include_directories(meshvale_materialization_tests PRIVATE src)
-  target_link_libraries(meshvale_materialization_tests PRIVATE meshvale::materialization)
-  add_test(NAME charged_materialization COMMAND meshvale_materialization_tests)
-  add_executable(meshvale_materialization_semantic_tests
-    tests/materialization_semantics/main.cpp
-    tests/materialization_semantics/fixture_support.cpp
-    tests/materialization_semantics/exact_ingress.cpp
-    tests/materialization_semantics/selection_inspection.cpp
-    tests/materialization_semantics/raw_defects_limits.cpp)
-  target_link_libraries(meshvale_materialization_semantic_tests PRIVATE meshvale::materialization)
-  add_test(NAME materialization_semantics COMMAND meshvale_materialization_semantic_tests)
-  add_executable(meshvale_materialization_accounting_tests
-    tests/materialization_runtime/public_accounting_workers.cpp)
-  target_link_libraries(meshvale_materialization_accounting_tests PRIVATE meshvale::materialization)
-  add_test(NAME materialization_accounting_workers COMMAND meshvale_materialization_accounting_tests)
-  add_executable(meshvale_materialization_fault_tests
-    tests/materialization_runtime/private_fault_workers.cpp)
-  target_include_directories(meshvale_materialization_fault_tests PRIVATE src)
-  target_link_libraries(meshvale_materialization_fault_tests PRIVATE meshvale::materialization)
-  add_test(NAME materialization_fault_workers COMMAND meshvale_materialization_fault_tests)
-  foreach(meshvale_materialization_test IN ITEMS
-      meshvale_materialization_semantic_tests meshvale_materialization_accounting_tests
+  if(MESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE STREQUAL "qualified")
+    add_executable(meshvale_materialization_tests tests/materialization.cpp)
+    target_include_directories(meshvale_materialization_tests PRIVATE src)
+    target_link_libraries(meshvale_materialization_tests PRIVATE meshvale::materialization)
+    add_test(NAME charged_materialization COMMAND meshvale_materialization_tests)
+    add_executable(meshvale_materialization_semantic_tests
+      tests/materialization_semantics/main.cpp
+      tests/materialization_semantics/fixture_support.cpp
+      tests/materialization_semantics/exact_ingress.cpp
+      tests/materialization_semantics/selection_inspection.cpp
+      tests/materialization_semantics/raw_defects_limits.cpp)
+    target_link_libraries(meshvale_materialization_semantic_tests PRIVATE meshvale::materialization)
+    add_test(NAME materialization_semantics COMMAND meshvale_materialization_semantic_tests)
+    add_executable(meshvale_materialization_accounting_tests
+      tests/materialization_runtime/public_accounting_workers.cpp)
+    target_link_libraries(meshvale_materialization_accounting_tests PRIVATE meshvale::materialization)
+    add_test(NAME materialization_accounting_workers COMMAND meshvale_materialization_accounting_tests)
+    add_executable(meshvale_materialization_fault_tests
+      tests/materialization_runtime/private_fault_workers.cpp)
+    target_include_directories(meshvale_materialization_fault_tests PRIVATE src)
+    target_link_libraries(meshvale_materialization_fault_tests PRIVATE meshvale::materialization)
+    add_test(NAME materialization_fault_workers COMMAND meshvale_materialization_fault_tests)
+    set(meshvale_materialization_test_targets
+      meshvale_materialization_tests meshvale_materialization_semantic_tests
+      meshvale_materialization_accounting_tests
       meshvale_materialization_fault_tests)
+  else()
+    add_executable(meshvale_unsupported_materialization_tests
+      tests/unsupported_materialization_profile.cpp)
+    target_link_libraries(meshvale_unsupported_materialization_tests PRIVATE
+      meshvale::materialization)
+    add_test(NAME unsupported_materialization_profile
+      COMMAND meshvale_unsupported_materialization_tests)
+    set(meshvale_materialization_test_targets
+      meshvale_unsupported_materialization_tests)
+  endif()
+  foreach(meshvale_materialization_test IN LISTS meshvale_materialization_test_targets)
     if(MSVC)
       target_compile_options(${meshvale_materialization_test} PRIVATE /W4 /WX /fp:strict)
     else()
@@ -302,7 +324,6 @@ if(BUILD_TESTING)
   if(MSVC)
     target_compile_options(meshvale_geometry_header_checks PRIVATE /W4 /WX)
     target_compile_options(meshvale_attribute_numerics_tests PRIVATE /W4 /WX /fp:strict)
-    target_compile_options(meshvale_materialization_tests PRIVATE /W4 /WX /fp:strict)
     target_compile_options(meshvale_scalar_buffer_tests PRIVATE /W4 /WX /fp:strict)
     target_compile_options(meshvale_geometry_tests PRIVATE /W4 /WX)
     target_compile_options(meshvale_topology_tests PRIVATE /W4 /WX)
@@ -313,7 +334,6 @@ if(BUILD_TESTING)
   else()
     target_compile_options(meshvale_geometry_header_checks PRIVATE -Wall -Wextra -Wpedantic -Werror)
     target_compile_options(meshvale_attribute_numerics_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
-    target_compile_options(meshvale_materialization_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
     target_compile_options(meshvale_scalar_buffer_tests PRIVATE -Wall -Wextra -Wpedantic -Werror -fno-fast-math)
     target_compile_options(meshvale_geometry_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
     target_compile_options(meshvale_topology_tests PRIVATE -Wall -Wextra -Wpedantic -Werror)
