@@ -177,11 +177,11 @@ bool Position(std::size_t count, const geo::ExecutionContext& context,
 }
 }  // namespace
 int main() {
-  std::printf("PROFILE\t1\t%s\t%s\tCLANG=%s\tASAN=%d\tTSAN=%d\n",
+  std::printf(observation::kProfileRecordFormat, observation::kProtocolVersion,
               OBSERVER_PROFILE, OBSERVER_GEOMETRY_REVISION, __clang_version__,
               __has_feature(address_sanitizer),
               __has_feature(thread_sanitizer));
-  std::printf("SOURCES\t%s\t%s\t%s\n", OBSERVER_SCALAR_SOURCE_HASH,
+  std::printf(observation::kSourcesRecordFormat, OBSERVER_SCALAR_SOURCE_HASH,
               OBSERVER_VECTOR_SOURCE_HASH, OBSERVER_ALLOCATION_SOURCE_HASH);
   bool good = Calibration();
   geo::ExecutionOptions options;

@@ -6,12 +6,22 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 
 #include "materialization_allocation.h"
 namespace observation {
+const int kProtocolVersion = 1;
+const char kProfileRecordFormat[] =
+    "PROFILE\t%d\t%s\t%s\tCLANG=%s\tASAN=%d\tTSAN=%d\n";
+const char kSourcesRecordFormat[] = "SOURCES\t%s\t%s\t%s\n";
 namespace {
 constexpr std::size_t kEventCapacity = 256;
+constexpr char kCaseRecordFormat[] =
+    "CASE\t%s\t%s\t%zu\t%d\t%zu\t%zu\t%zu\t%d\t%zu\t%zu\t%zu\t%zu\t%zu\t%"
+    "zu\n";
+constexpr char kEventRecordFormat[] =
+    "EVENT\t%zu\t%s\t%s\t%s\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\n";
 constexpr std::array kRoutes{"malloc",
                              "free",
                              "calloc",
@@ -83,18 +93,17 @@ void Record(Route kind, Action action, std::size_t first, std::size_t second,
 void Sample() noexcept { Record(Route::kLedger, Action::kSample, 0, 0, 0); }
 bool End(const Case& observed) noexcept {
   active = false;
-  std::printf(
-      "CASE\t%s\t%s\t%zu\t%d\t%zu\t%zu\t%zu\t%d\t%zu\t%zu\t%zu\t%zu\t%zu\t%"
-      "zu\n",
-      observed.shape, kModes[static_cast<std::size_t>(observed.mode)],
-      observed.scalar_bytes, observed.width, observed.count,
-      observed.implementation_bytes, observed.numerical_bytes,
-      observed.qualified, count, root_before, operation_before, RootBytes(),
-      OperationBytes(), static_cast<std::size_t>(observed.numeric_data));
+  std::printf(kCaseRecordFormat, observed.shape,
+              kModes[static_cast<std::size_t>(observed.mode)],
+              observed.scalar_bytes, observed.width, observed.count,
+              observed.implementation_bytes, observed.numerical_bytes,
+              observed.qualified, count, root_before, operation_before,
+              RootBytes(), OperationBytes(),
+              static_cast<std::size_t>(observed.numeric_data));
   const auto visible = count < events.size() ? count : events.size();
   for (std::size_t i = 0; i != visible; ++i) {
     const auto& event = events[i];
-    std::printf("EVENT\t%zu\t%s\t%s\t%s\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\n", i,
+    std::printf(kEventRecordFormat, i,
                 kPhases[static_cast<std::size_t>(event.phase)],
                 kRoutes[static_cast<std::size_t>(event.kind)],
                 kActions[static_cast<std::size_t>(event.action)], event.first,

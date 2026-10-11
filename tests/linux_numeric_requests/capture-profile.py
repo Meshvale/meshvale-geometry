@@ -10,6 +10,21 @@ import subprocess
 OWNERS = ("scalar_buffer", "vector_buffer")
 DROP_SINGLE = {"-c", "-MD", "-MMD", "-MP"}
 DROP_PAIR = {"-o", "-MF", "-MT", "-MQ"}
+SUPPRESSION_PREFIXES = ("-fno-sanitize", "-fsanitize-ignorelist",
+                        "-fsanitize-blacklist", "-fsanitize-system-ignorelist")
+
+
+def validate_instrumentation(arguments, profile):
+    assert not any(arg.startswith(SUPPRESSION_PREFIXES) for arg in arguments), \
+        "Owner sanitizer disabling or ignorelist inputs are forbidden"
+    assert not any(arg.startswith("@") or arg == "--config" or arg.startswith("--config=")
+                   for arg in arguments), "Opaque response/config inputs cannot prove owner instrumentation"
+    sanitizer_flags = [arg for arg in arguments if arg.startswith("-fsanitize=")]
+    if profile == "asan-ubsan":
+        features = set().union(*(set(f.split("=", 1)[1].split(",")) for f in sanitizer_flags))
+        assert features == {"address", "undefined"}, "Owner instrumentation differs from observer profile"
+    else:
+        assert not sanitizer_flags, "Native owner unexpectedly instrumented"
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -41,12 +56,7 @@ def main():
         entry = matches[0]
         original = entry.get("arguments") or shlex.split(entry["command"])
         assert "clang" in Path(original[0]).name
-        sanitizer_flags = [arg for arg in original if arg.startswith("-fsanitize=")]
-        if args.profile == "asan-ubsan":
-            features = set().union(*(set(f.split("=", 1)[1].split(",")) for f in sanitizer_flags))
-            assert features == {"address", "undefined"}, "Owner instrumentation differs from observer profile"
-        else:
-            assert not sanitizer_flags, "Native owner unexpectedly instrumented"
+        validate_instrumentation(original, args.profile)
         preprocessor = []
         index = 0
         while index < len(original):

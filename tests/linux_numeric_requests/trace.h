@@ -9,6 +9,9 @@
 
 #include "materialization_allocation.h"
 namespace observation {
+extern const int kProtocolVersion;
+extern const char kProfileRecordFormat[];
+extern const char kSourcesRecordFormat[];
 enum class Route {
   kMalloc,
   kFree,

@@ -83,7 +83,9 @@ capture that provenance independently.
 
 `capture-profile.py` replays preprocessing with the scalar/vector owners' exact
 compile commands, retaining original flags and source hashes. It never redefines
-Eigen macros. Observer-side sanitizer features describe the observer only. They
+Eigen macros. It rejects sanitizer disabling/ignorelist flags and opaque
+response/config inputs rather than inferring effective instrumentation from
+positive flags alone. Observer-side sanitizer features describe the observer only. They
 are not a substitute for these compiled-owner macro records.
 
 [GNU linker wrapping](https://sourceware.org/binutils/docs/ld/Options.html) affects
