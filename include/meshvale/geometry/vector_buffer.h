@@ -10,6 +10,9 @@
 #include <type_traits>
 
 namespace meshvale::geometry {
+namespace numeric_detail {
+struct Access;
+}
 
 // Fixed vector widths for UVs, xyz vectors and homogeneous/tangent values.
 inline constexpr int kVector2Components = 2;
@@ -60,6 +63,7 @@ class VectorBuffer {
   void CopyBytesTo(std::span<std::byte> destination) const;
 
  private:
+  friend struct numeric_detail::Access;
   struct Impl;
   std::unique_ptr<Impl> impl_;
 };

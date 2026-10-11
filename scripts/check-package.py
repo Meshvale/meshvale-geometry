@@ -45,7 +45,7 @@ def inspect(path):
             assert not PurePosixPath(member.name).is_absolute() and ".." not in parts and len(parts) >= 2, member.name
             name = "/".join(parts[1:]); names.append(name)
             assert name in allowed or parts[1] in directories or name in {
-                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py","scripts/check-native-tests.py"}, name
+                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py","scripts/check-native-tests.py","scripts/run-numeric-request-observation.py"}, name
             assert not any(part in {".local",".scratch","__pycache__","references","build",".github"} for part in parts), name
             assert not name.endswith((".pyc",".pyd",".so",".obj",".log")), name
         assert "python/meshvale_geometry/_version.py" in names
@@ -89,6 +89,24 @@ def inspect(path):
                      "examples/execution-consumer/main.cpp"]:
             assert name in names, name
         assert "python/meshvale_reports/report-v1.schema.json" in names
+        for name in ["include/meshvale/geometry/materialization.h",
+                     "src/mesh_materialization.cpp",
+                     "src/materialization_allocation.h", "src/materialization_allocation.cpp",
+                     "src/materialization_storage.h", "src/materialization_workers.h",
+                     "src/materialization_workers.cpp", "src/materialization_test_internal.h",
+                     "src/numeric_buffer_internal.h", "src/numeric_request_internal.h",
+                     "docs/materialization.md", "tests/materialization.cpp",
+                     "cmake/MeshvaleNumericProfile.cmake",
+                     "tests/unsupported_materialization_profile.cpp",
+                     "tests/materialization_runtime/public_accounting_workers.cpp",
+                     "tests/materialization_runtime/private_fault_workers.cpp",
+                     "examples/materialization-consumer/CMakeLists.txt",
+                     "examples/materialization-consumer/main.cpp",
+                     "examples/unsupported-materialization-consumer/CMakeLists.txt"]:
+            assert name in names, name
+        for name in ["fixture_support.h", "fixture_support.cpp", "main.cpp",
+                     "exact_ingress.cpp", "selection_inspection.cpp", "raw_defects_limits.cpp"]:
+            assert "tests/materialization_semantics/" + name in names, name
         assert "tests/reports/test_reports.py" in names
     print(f"Package content check passed: {path.name}; {len(names)} files")
 

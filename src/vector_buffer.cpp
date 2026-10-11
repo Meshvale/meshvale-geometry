@@ -9,6 +9,8 @@
 #include <utility>
 
 #include "eigen_types.h"
+#include "numeric_buffer_internal.h"
+#include "numeric_request_internal.h"
 
 namespace meshvale::geometry {
 namespace {
@@ -43,6 +45,35 @@ struct VectorBuffer<T, Components>::Impl {
   explicit Impl(std::size_t capacity)
       : allocation(static_cast<eigen_types::Index>(capacity), Components) {}
 };
+
+numeric_detail::RequestPlan numeric_detail::Access::PositionPlan(
+    std::size_t rows) {
+  CheckRows<double, kVector3Components>(rows);
+  using Buffer = VectorBuffer<double, kVector3Components>;
+  return {rows == 0 ? 0 : sizeof(Buffer::Impl),
+          NumericalRequestBytes(rows * kVector3Components * sizeof(double)),
+          QualifiedRequestProfile()};
+}
+VectorBuffer<double, kVector3Components>
+numeric_detail::Access::AllocatePositions(std::size_t rows) {
+  CheckRows<double, kVector3Components>(rows);
+  VectorBuffer<double, kVector3Components> result;
+  if (rows != 0) {
+    result.impl_ = std::make_unique<decltype(result)::Impl>(rows);
+    result.impl_->count = rows;
+  }
+  return result;
+}
+std::span<double> numeric_detail::Access::PositionScalars(
+    VectorBuffer<double, kVector3Components>& buffer) noexcept {
+  return {buffer.impl_ ? buffer.impl_->allocation.data() : nullptr,
+          buffer.size() * kVector3Components};
+}
+std::span<const double> numeric_detail::Access::PositionScalars(
+    const VectorBuffer<double, kVector3Components>& buffer) noexcept {
+  return {buffer.impl_ ? buffer.impl_->allocation.data() : nullptr,
+          buffer.size() * kVector3Components};
+}
 
 template <class T, int Components>
 VectorBuffer<T, Components>::VectorBuffer() = default;

@@ -5,12 +5,21 @@ name: Repository checks
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      qualification:
+        description: "Full repository gates or prerequisite original numerical request observation"
+        type: choice
+        default: full
+        options:
+          - full
+          - numeric-request-observation
 
 permissions:
   contents: read
 
 jobs:
   documentation:
+    if: github.event_name != 'workflow_dispatch' || inputs.qualification == 'full'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -28,90 +37,234 @@ jobs:
         run: python scripts/check-cpp-format.py
 
   native:
+    if: github.event_name != 'workflow_dispatch' || inputs.qualification == 'full'
+    name: Native ${{ matrix.profile_id }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - profile_id: windows-msvc-qualified
+            os: windows-latest
+            compiler_id: MSVC
+            compiler_version: ""
+            compiler_option: ""
+            build_type: Release
+            materialization_profile: qualified
+            allocation_probe: enabled
+            installed_example: examples/materialization-consumer
+          - profile_id: linux-clang-qualified
+            os: ubuntu-24.04
+            compiler_id: Clang
+            compiler_version: "18.1.3"
+            compiler_option: -DCMAKE_CXX_COMPILER=clang++-18
+            build_type: Debug
+            materialization_profile: qualified
+            allocation_probe: enabled
+            installed_example: examples/materialization-consumer
+          - profile_id: linux-gcc-unsupported
+            os: ubuntu-24.04
+            compiler_id: GNU
+            compiler_version: ""
+            compiler_option: -DCMAKE_CXX_COMPILER=g++
+            build_type: Release
+            materialization_profile: unsupported
+            allocation_probe: enabled
+            installed_example: examples/unsupported-materialization-consumer
+          - profile_id: macos-appleclang-unsupported
+            os: macos-latest
+            compiler_id: AppleClang
+            compiler_version: ""
+            compiler_option: -DCMAKE_CXX_COMPILER=clang++
+            build_type: Release
+            materialization_profile: unsupported
+            allocation_probe: enabled
+            installed_example: examples/unsupported-materialization-consumer
+          - profile_id: linux-gcc-unsupported-no-allocation-probe
+            os: ubuntu-24.04
+            compiler_id: GNU
+            compiler_version: ""
+            compiler_option: -DCMAKE_CXX_COMPILER=g++
+            build_type: Release
+            materialization_profile: unsupported
+            allocation_probe: disabled
+            installed_example: examples/unsupported-materialization-consumer
+          - profile_id: macos-appleclang-unsupported-no-allocation-probe
+            os: macos-latest
+            compiler_id: AppleClang
+            compiler_version: ""
+            compiler_option: -DCMAKE_CXX_COMPILER=clang++
+            build_type: Release
+            materialization_profile: unsupported
+            allocation_probe: disabled
+            installed_example: examples/unsupported-materialization-consumer
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Configure
-        run: cmake -S . -B .local/build -DCMAKE_BUILD_TYPE=Release
+        run: >-
+          cmake -S . -B .local/build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          ${{ matrix.compiler_option }} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON
+          -DMESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE=${{ matrix.materialization_profile }}
+          -DMESHVALE_GEOMETRY_ALLOCATION_PROBE=${{ matrix.allocation_probe == 'enabled' && 'ON' || 'OFF' }}
       - name: Configure native libraries without Python discovery
         run: >-
           cmake -S . -B .local/native-only -DBUILD_TESTING=OFF
-          -DCMAKE_BUILD_TYPE=Release -DCMAKE_DISABLE_FIND_PACKAGE_Python=ON
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }}
+          -DMESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE=${{ matrix.materialization_profile }}
+          -DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON -DCMAKE_DISABLE_FIND_PACKAGE_Python=ON
           -DCMAKE_DISABLE_FIND_PACKAGE_Python3=ON -DCMAKE_DISABLE_FIND_PACKAGE_nanobind=ON
       - name: Build native libraries without Python
-        run: cmake --build .local/native-only --config Release
+        run: cmake --build .local/native-only --config ${{ matrix.build_type }} --parallel 2
       - name: Build and inspect storage
-        run: cmake --build .local/build --config Release
+        run: cmake --build .local/build --config ${{ matrix.build_type }} --parallel 2
       - name: Test
-        run: python scripts/check-native-tests.py --build-dir .local/build
+        run: >-
+          python scripts/check-native-tests.py --build-dir .local/build
+          --configuration ${{ matrix.build_type }}
+          --materialization-profile ${{ matrix.materialization_profile }} --allocation-probe ${{ matrix.allocation_probe }}
+          --compiler-id ${{ matrix.compiler_id }}
+          ${{ matrix.compiler_version != '' && format('--compiler-version {0}', matrix.compiler_version) || '' }}
       - name: Run native tests
-        run: ctest --test-dir .local/build -C Release --output-on-failure
+        run: ctest --test-dir .local/build -C ${{ matrix.build_type }} --output-on-failure
       - name: Install
-        run: cmake --install .local/build --config Release --prefix .local/install
+        run: cmake --install .local/build --config ${{ matrix.build_type }} --prefix .local/install
       - name: Configure installed consumer
-        run: cmake -S examples/consumer -B .local/consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+        run: cmake -S examples/consumer -B .local/consumer -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }} "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
       - name: Build installed consumer
-        run: cmake --build .local/consumer --config Release
+        run: cmake --build .local/consumer --config ${{ matrix.build_type }} --parallel 2
       - name: Test installed consumer
-        run: ctest --test-dir .local/consumer -C Release --output-on-failure
+        run: ctest --test-dir .local/consumer -C ${{ matrix.build_type }} --output-on-failure
       - name: Configure installed editing consumer
-        run: cmake -S examples/editing-consumer -B .local/editing-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+        run: cmake -S examples/editing-consumer -B .local/editing-consumer -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }} "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
       - name: Build installed editing consumer
-        run: cmake --build .local/editing-consumer --config Release
+        run: cmake --build .local/editing-consumer --config ${{ matrix.build_type }} --parallel 2
       - name: Test installed editing consumer
-        run: ctest --test-dir .local/editing-consumer -C Release --output-on-failure
+        run: ctest --test-dir .local/editing-consumer -C ${{ matrix.build_type }} --output-on-failure
       - name: Configure installed execution consumer
-        run: cmake -S examples/execution-consumer -B .local/execution-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+        run: cmake -S examples/execution-consumer -B .local/execution-consumer -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }} "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
       - name: Build installed execution consumer
-        run: cmake --build .local/execution-consumer --config Release
+        run: cmake --build .local/execution-consumer --config ${{ matrix.build_type }} --parallel 2
       - name: Test installed execution consumer
-        run: ctest --test-dir .local/execution-consumer -C Release --output-on-failure
+        run: ctest --test-dir .local/execution-consumer -C ${{ matrix.build_type }} --output-on-failure
       - name: Configure installed triangulation consumer
-        run: cmake -S examples/triangulation-consumer -B .local/triangulation-consumer "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+        run: cmake -S examples/triangulation-consumer -B .local/triangulation-consumer -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }} "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
       - name: Build installed triangulation consumer
-        run: cmake --build .local/triangulation-consumer --config Release
+        run: cmake --build .local/triangulation-consumer --config ${{ matrix.build_type }} --parallel 2
       - name: Test installed triangulation consumer
-        run: ctest --test-dir .local/triangulation-consumer -C Release --output-on-failure
+        run: ctest --test-dir .local/triangulation-consumer -C ${{ matrix.build_type }} --output-on-failure
+
+      - name: Capture actual admitted Linux owning profiles
+        if: matrix.profile_id == 'linux-clang-qualified'
+        run: >-
+          python tests/linux_numeric_requests/capture-profile.py --source .
+          --compile-commands .local/build/compile_commands.json --revision ${{ github.sha }}
+          --profile native --output .local/native-owner-profile
+      - name: Configure installed materialization profile consumer
+        run: >-
+          cmake -S ${{ matrix.installed_example }} -B .local/materialization-consumer
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }}
+          "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+      - name: Build installed materialization profile consumer
+        run: cmake --build .local/materialization-consumer --config ${{ matrix.build_type }} --parallel 2
+      - name: Require the explicit installed materialization inventory
+        run: >-
+          python scripts/check-native-tests.py --build-dir .local/build
+          --installed-build-dir .local/materialization-consumer
+          --configuration ${{ matrix.build_type }}
+          --materialization-profile ${{ matrix.materialization_profile }} --allocation-probe ${{ matrix.allocation_probe }}
+          --compiler-id ${{ matrix.compiler_id }}
+          ${{ matrix.compiler_version != '' && format('--compiler-version {0}', matrix.compiler_version) || '' }}
+      - name: Test installed materialization profile consumer
+        run: ctest --test-dir .local/materialization-consumer -C ${{ matrix.build_type }} --output-on-failure
+      - name: Retain exact native profile artifacts including failures
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: geometry-full-${{ matrix.profile_id }}-${{ github.sha }}
+          path: .local/
+          include-hidden-files: true
+          if-no-files-found: error
 
   native-sanitizers:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.qualification == 'full'
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Record sanitizer compiler
-        run: clang++ --version
+        run: clang++-18 --version
       - name: Configure address and undefined behavior checks
         run: >-
           cmake -S . -B .local/sanitizers -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_CXX_COMPILER=clang++-18
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON
+          -DMESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE=qualified
+          -DMESHVALE_GEOMETRY_ALLOCATION_PROBE=ON
           "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
           "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
       - name: Build instrumented native tests
         run: cmake --build .local/sanitizers --parallel 2
       - name: Run instrumented native tests
-        run: python scripts/check-native-tests.py --build-dir .local/sanitizers --configuration Debug
+        run: >-
+          python scripts/check-native-tests.py --build-dir .local/sanitizers --configuration Debug
+          --materialization-profile qualified --allocation-probe enabled --compiler-id Clang --compiler-version 18.1.3
       - name: Execute instrumented native tests
         run: ctest --test-dir .local/sanitizers --output-on-failure
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
+      - name: Capture matching sanitizer owning profile
+        run: >-
+          python tests/linux_numeric_requests/capture-profile.py --source .
+          --compile-commands .local/sanitizers/compile_commands.json --revision ${{ github.sha }}
+          --profile asan-ubsan --output .local/sanitizer-owner-profile
+      - name: Install matching instrumented producer
+        run: cmake --install .local/sanitizers --prefix .local/sanitizer-prefix
+      - name: Configure matching installed materialization example
+        run: >-
+          cmake -S examples/materialization-consumer -B .local/sanitizer-consumer
+          -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++-18
+          "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/sanitizer-prefix"
+          "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer"
+          "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Build matching installed materialization example
+        run: cmake --build .local/sanitizer-consumer --parallel 2
+      - name: Require matching installed materialization inventory
+        run: >-
+          python scripts/check-native-tests.py --build-dir .local/sanitizers
+          --installed-build-dir .local/sanitizer-consumer --configuration Debug
+          --materialization-profile qualified --allocation-probe enabled --compiler-id Clang --compiler-version 18.1.3
+      - name: Execute matching installed materialization example
+        run: ctest --test-dir .local/sanitizer-consumer --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      - name: Retain matching sanitizer artifacts including failures
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: geometry-full-asan-ubsan-${{ github.sha }}
+          path: .local/
+          include-hidden-files: true
+          if-no-files-found: error
+
   native-thread-sanitizer:
-    runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.qualification == 'full'
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Record thread sanitizer compiler
-        run: clang++ --version
+        run: clang++-18 --version
       - name: Configure race detection separately from address checks
         run: >-
           cmake -S . -B .local/thread-sanitizer -DCMAKE_BUILD_TYPE=Debug
-          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_CXX_COMPILER=clang++-18
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_DISABLE_FIND_PACKAGE_Eigen3=ON
+          -DMESHVALE_GEOMETRY_MATERIALIZATION_TEST_PROFILE=qualified
           -DMESHVALE_GEOMETRY_ALLOCATION_PROBE=OFF
           "-DCMAKE_CXX_FLAGS=-fsanitize=thread -O1 -g -fno-omit-frame-pointer"
           "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=thread"
@@ -120,13 +273,24 @@ jobs:
       - name: Run instrumented native tests
         run: >-
           python scripts/check-native-tests.py --build-dir .local/thread-sanitizer
-          --configuration Debug --allocation-probe disabled
+          --configuration Debug --materialization-profile qualified --allocation-probe disabled
+          --compiler-id Clang --compiler-version 18.1.3
       - name: Execute instrumented native tests
         run: ctest --test-dir .local/thread-sanitizer --output-on-failure
         env:
           TSAN_OPTIONS: halt_on_error=1
 
+      - name: Retain separate TSan worker gate artifacts including failures
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: geometry-full-tsan-workers-${{ github.sha }}
+          path: .local/
+          include-hidden-files: true
+          if-no-files-found: error
+
   python:
+    if: github.event_name != 'workflow_dispatch' || inputs.qualification == 'full'
     strategy:
       fail-fast: false
       matrix:
@@ -158,3 +322,34 @@ jobs:
       - name: Test fresh installed wheels, lifetimes and both import orders
         shell: bash
         run: python scripts/test-installed.py --geometry-wheel .local/dist/*.whl --consumer-wheel .local/record-wheels/*.whl --numpy --reports
+
+  numeric-request-observation:
+    if: github.event_name == 'workflow_dispatch' && inputs.qualification == 'numeric-request-observation'
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [native, asan-ubsan, tsan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - name: Observe exact-source original numerical requests
+        run: >-
+          python scripts/run-numeric-request-observation.py
+          --profile ${{ matrix.profile }} --revision ${{ github.sha }}
+          --output .local/numeric-request-${{ matrix.profile }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+          TSAN_OPTIONS: halt_on_error=1
+      - name: Retain original observation evidence including failures
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: geometry-numeric-request-${{ matrix.profile }}-${{ github.sha }}
+          path: .local/numeric-request-${{ matrix.profile }}
+          include-hidden-files: true
+          if-no-files-found: error

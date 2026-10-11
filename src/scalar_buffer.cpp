@@ -8,8 +8,15 @@
 #include <limits>
 #include <stdexcept>
 #include <utility>
+#include <version>
+
+#if defined(__linux__)
+#include <features.h>
+#endif
 
 #include "eigen_types.h"
+#include "numeric_buffer_internal.h"
+#include "numeric_request_internal.h"
 
 namespace meshvale::geometry {
 namespace {
@@ -57,6 +64,130 @@ struct ScalarBuffer<T>::Impl {
   eigen_types::Vector<T> values;
   std::size_t size = 0;
 };
+
+bool numeric_detail::QualifiedRequestProfile() noexcept {
+#if (defined(_WIN64) && defined(_MSC_VER)) || \
+    (defined(__linux__) && defined(__x86_64__) && defined(__clang__))
+  // Plans require the pinned original plain, default-aligned Eigen route.
+  constexpr int kQualifiedEigenWorldVersion = 3;
+  constexpr int kQualifiedEigenMajorVersion = 4;
+  constexpr int kQualifiedEigenMinorVersion = 1;
+  constexpr int kQualifiedDefaultAlignment = 16;
+  constexpr int kQualifiedMallocAlreadyAligned = 1;
+  const bool qualified_eigen =
+      EIGEN_WORLD_VERSION == kQualifiedEigenWorldVersion &&
+      EIGEN_MAJOR_VERSION == kQualifiedEigenMajorVersion &&
+      EIGEN_MINOR_VERSION == kQualifiedEigenMinorVersion &&
+      EIGEN_DEFAULT_ALIGN_BYTES == kQualifiedDefaultAlignment &&
+      EIGEN_MALLOC_ALREADY_ALIGNED == kQualifiedMallocAlreadyAligned;
+  if (!qualified_eigen) return false;
+#if defined(_WIN64) && defined(_MSC_VER)
+  // Preserve the independently observed MSVC x64 cohort.
+  return true;
+#elif defined(__GLIBC__) && defined(__GLIBC_MINOR__) &&                       \
+    defined(_GLIBCXX_RELEASE) && defined(__GLIBCXX__) &&                      \
+    defined(MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD) &&                         \
+    defined(MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION) && !defined(NDEBUG) && \
+    !defined(__FAST_MATH__) && defined(EIGEN_VECTORIZE_SSE2) &&               \
+    !defined(EIGEN_VECTORIZE_SSE3) && !defined(EIGEN_VECTORIZE_SSSE3) &&      \
+    !defined(EIGEN_VECTORIZE_SSE4_1) && !defined(EIGEN_VECTORIZE_SSE4_2) &&   \
+    !defined(EIGEN_VECTORIZE_AVX) && !defined(EIGEN_VECTORIZE_AVX512) &&      \
+    !defined(EIGEN_DONT_VECTORIZE)
+  // Each observed Linux Debug instrumentation category owns its optimization
+  // requirement; ordinary native/ASan profiles remain unoptimized.
+  constexpr int kQualifiedClangMajorVersion = 18;
+  constexpr int kQualifiedClangMinorVersion = 1;
+  constexpr int kQualifiedClangPatchVersion = 3;
+  constexpr int kQualifiedGlibcMajorVersion = 2;
+  constexpr int kQualifiedGlibcMinorVersion = 39;
+  constexpr int kQualifiedLibstdcxxRelease = 14;
+  constexpr long kQualifiedLibstdcxxDate = 20240908;
+  constexpr int kQualifiedDebugBuild = 1;
+  constexpr int kQualifiedNativeInstrumentation = 1;
+  constexpr int kQualifiedAsanUbsanInstrumentation = 2;
+  constexpr int kQualifiedTsanInstrumentation = 3;
+  constexpr int kUnoptimizedBuild = 0;
+  constexpr int kQualifiedTsanOptimization = 1;
+#if defined(__OPTIMIZE__)
+  constexpr int kCompiledOptimization = __OPTIMIZE__;
+#else
+  constexpr int kCompiledOptimization = kUnoptimizedBuild;
+#endif
+  constexpr std::size_t kQualifiedLp64Bytes = 8;
+  const bool qualified_instrumentation =
+      (!__has_feature(thread_sanitizer) &&
+       kCompiledOptimization == kUnoptimizedBuild &&
+       ((MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+             kQualifiedNativeInstrumentation &&
+         !__has_feature(address_sanitizer) &&
+         !__has_feature(undefined_behavior_sanitizer)) ||
+        (MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+             kQualifiedAsanUbsanInstrumentation &&
+         __has_feature(address_sanitizer) &&
+         __has_feature(undefined_behavior_sanitizer)))) ||
+      (MESHVALE_GEOMETRY_NUMERIC_INSTRUMENTATION ==
+           kQualifiedTsanInstrumentation &&
+       kCompiledOptimization == kQualifiedTsanOptimization &&
+       __has_feature(thread_sanitizer) && !__has_feature(address_sanitizer) &&
+       !__has_feature(undefined_behavior_sanitizer));
+  const bool qualified_sanitizers =
+      !__has_feature(memory_sanitizer) && !__has_feature(hwaddress_sanitizer) &&
+      !__has_feature(dataflow_sanitizer) && !__has_feature(safe_stack) &&
+      !__has_feature(scudo) && !__has_feature(shadow_call_stack) &&
+      !__has_feature(kcfi) && !__has_feature(coverage_sanitizer) &&
+      !__has_feature(xray_instrument) &&
+      !__has_feature(speculative_load_hardening) &&
+      !__has_feature(memtag_stack) && !__has_feature(memtag_heap) &&
+      !__has_feature(memtag_globals) &&
+      (!__has_feature(leak_sanitizer) || __has_feature(address_sanitizer)) &&
+      qualified_instrumentation;
+  return qualified_sanitizers &&
+         __clang_major__ == kQualifiedClangMajorVersion &&
+         __clang_minor__ == kQualifiedClangMinorVersion &&
+         __clang_patchlevel__ == kQualifiedClangPatchVersion &&
+         __GLIBC__ == kQualifiedGlibcMajorVersion &&
+         __GLIBC_MINOR__ == kQualifiedGlibcMinorVersion &&
+         _GLIBCXX_RELEASE == kQualifiedLibstdcxxRelease &&
+         __GLIBCXX__ == kQualifiedLibstdcxxDate &&
+         MESHVALE_GEOMETRY_NUMERIC_DEBUG_BUILD == kQualifiedDebugBuild &&
+         sizeof(void*) == kQualifiedLp64Bytes &&
+         sizeof(long) == kQualifiedLp64Bytes;
+#else
+  return false;
+#endif
+#else
+  return false;
+#endif
+}
+std::size_t numeric_detail::NumericalRequestBytes(std::size_t payload) {
+  if (payload == 0) return 0;
+#if EIGEN_DEFAULT_ALIGN_BYTES == 0 || EIGEN_MALLOC_ALREADY_ALIGNED
+  return payload;
+#else
+  constexpr std::size_t kEigenAllocationPadding = EIGEN_DEFAULT_ALIGN_BYTES;
+  if (payload >
+      std::numeric_limits<std::size_t>::max() - kEigenAllocationPadding)
+    throw std::length_error("numeric allocation request exceeds host extent");
+  return payload + kEigenAllocationPadding;
+#endif
+}
+template <SupportedAttributeScalar T>
+numeric_detail::RequestPlan numeric_detail::Access::ScalarPlan(
+    std::size_t count) {
+  CheckCount<T>(count);
+  return {count == 0 ? 0 : sizeof(typename ScalarBuffer<T>::Impl),
+          NumericalRequestBytes(count * sizeof(T)), QualifiedRequestProfile()};
+}
+template <SupportedAttributeScalar T>
+ScalarBuffer<T> numeric_detail::Access::AllocateScalars(std::size_t count) {
+  CheckCount<T>(count);
+  ScalarBuffer<T> result;
+  if (count != 0) {
+    result.impl_ = std::make_unique<typename ScalarBuffer<T>::Impl>(count);
+    result.impl_->size = count;
+  }
+  return result;
+}
 
 template <SupportedAttributeScalar T>
 ScalarBuffer<T>::ScalarBuffer() noexcept = default;
@@ -285,4 +416,33 @@ template class ScalarBuffer<std::uint8_t>;
 template class ScalarBuffer<std::uint16_t>;
 template class ScalarBuffer<std::uint32_t>;
 template class ScalarBuffer<std::uint64_t>;
+
+template numeric_detail::RequestPlan numeric_detail::Access::ScalarPlan<float>(
+    std::size_t);
+template numeric_detail::RequestPlan numeric_detail::Access::ScalarPlan<double>(
+    std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::int32_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint8_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint16_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint32_t>(std::size_t);
+template numeric_detail::RequestPlan
+numeric_detail::Access::ScalarPlan<std::uint64_t>(std::size_t);
+template ScalarBuffer<float> numeric_detail::Access::AllocateScalars<float>(
+    std::size_t);
+template ScalarBuffer<double> numeric_detail::Access::AllocateScalars<double>(
+    std::size_t);
+template ScalarBuffer<std::int32_t>
+numeric_detail::Access::AllocateScalars<std::int32_t>(std::size_t);
+template ScalarBuffer<std::uint8_t>
+numeric_detail::Access::AllocateScalars<std::uint8_t>(std::size_t);
+template ScalarBuffer<std::uint16_t>
+numeric_detail::Access::AllocateScalars<std::uint16_t>(std::size_t);
+template ScalarBuffer<std::uint32_t>
+numeric_detail::Access::AllocateScalars<std::uint32_t>(std::size_t);
+template ScalarBuffer<std::uint64_t>
+numeric_detail::Access::AllocateScalars<std::uint64_t>(std::size_t);
 }  // namespace meshvale::geometry

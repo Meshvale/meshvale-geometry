@@ -27,6 +27,12 @@
 
 ### Added
 
+- Immutable full-storage capture, raw inspection and face selection through
+  `materialization.h` and `meshvale::materialization`, with complete typed
+  attributes, ordered metadata, shared allocation/worker admission and retained
+  face/corner maps. Nonempty numerical capture currently admits only the
+  documented [Windows/MSVC allocation profile](docs/materialization.md).
+
 - Checked native attribute row sums and squared norms through
   `attribute_numerics.h` and `meshvale::attribute_numerics`, retaining all seven
   scalar encodings, dense/ragged rows and authored/missing distinctions. Owned

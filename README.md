@@ -51,6 +51,16 @@ channel backing and shared execution. The [Python conversion example](examples/p
 uses immutable snapshots, owned correspondence and a reusable execution context.
 Approximate-planarity profiles are forthcoming.
 
+[Immutable mesh materialization](docs/materialization.md) captures complete typed
+polygon storage under shared allocation and worker budgets, inspects raw storage,
+and selects faces with vertex sharing and face/corner correspondence. Link the
+separate `meshvale::materialization` target; see its
+[installed example](examples/materialization-consumer/CMakeLists.txt).
+Nonempty numerical capture requires an admitted compiled allocation profile.
+See the [bounded build profiles and remaining qualification gates](docs/materialization.md#compiled-allocation-profiles).
+Other profiles reject it before allocation; this development interface has no
+stable API/ABI guarantee.
+
 ## Planned capabilities
 
 - Triangles, quads, n-gons, and mixed polygon meshes.
