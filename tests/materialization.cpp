@@ -3,8 +3,10 @@
 #include <meshvale/geometry/execution.h>
 #include <meshvale/geometry/materialization.h>
 #include <meshvale/geometry/scalar_buffer.h>
+#include <meshvale/geometry/vector_buffer.h>
 
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
@@ -16,6 +18,7 @@
 #include <stdexcept>
 #include <stop_token>
 #include <string_view>
+#include <thread>
 #include <variant>
 
 #include "materialization_allocation.h"
@@ -338,6 +341,94 @@ void SourceDefectPrecedenceCase() {
   Require(execution.ActiveWorkers() == 0,
           "source-defect precedence left a worker slot retained");
 }
+struct DelayEarlierWorker {
+  struct Wrapped {
+    allocation::NativeWorkerRecord entry;
+    allocation::NativeWorkerRecord* original = nullptr;
+    DelayEarlierWorker* owner = nullptr;
+  };
+  std::array<Wrapped, kWorkerBudget> records;
+  allocation::NativeWorkerBackend original =
+      allocation::DefaultNativeWorkerBackend();
+  std::atomic<bool> later_completed{false};
+  std::stop_source stop;
+  std::size_t next = 0;
+  static void Entry(allocation::NativeWorkerRecord& record) noexcept {
+    auto& wrapped = *static_cast<Wrapped*>(record.state);
+    auto& owner = *wrapped.owner;
+    if (wrapped.original->ordinal == 0) {
+      while (!owner.later_completed.load(std::memory_order_acquire))
+        std::this_thread::yield();
+      wrapped.original->entry(*wrapped.original);
+    } else {
+      wrapped.original->entry(*wrapped.original);
+      owner.stop.request_stop();
+      owner.later_completed.store(true, std::memory_order_release);
+    }
+  }
+  static std::uintptr_t Launch(allocation::NativeWorkerRecord* record,
+                               void* argument) {
+    auto& state = *static_cast<DelayEarlierWorker*>(argument);
+    auto& wrapped = state.records.at(state.next++);
+    wrapped.original = record;
+    wrapped.owner = &state;
+    wrapped.entry = {Entry, &wrapped, record->ordinal};
+    try {
+      return state.original.launch(&wrapped.entry, state.original.state);
+    } catch (...) {
+      state.stop.request_stop();
+      state.later_completed.store(true, std::memory_order_release);
+      throw;
+    }
+  }
+  static void Join(std::uintptr_t handle, void* argument) noexcept {
+    auto& state = *static_cast<DelayEarlierWorker*>(argument);
+    state.original.join(handle, state.original.state);
+  }
+};
+void CanceledEarlierPrefixCase() {
+  ExecutionContext execution(TestExecutionOptions());
+  constexpr std::size_t kFourVertexScalars = 12;
+  constexpr std::size_t kTriangleCornerCount = 3;
+  constexpr std::size_t kLaterDefectVertex = 2;
+  constexpr std::uint64_t kSignalingNanBits = UINT64_C(0x7ff0000000000001);
+  constexpr std::uint64_t kTwoVertexPartitionBytes = 48;
+  constexpr std::uint64_t kSourceParallelThreshold = 1;
+  std::array<double, kFourVertexScalars> positions{};
+  std::memcpy(positions.data(), &kSignalingNanBits, sizeof(kSignalingNanBits));
+  std::memcpy(positions.data() + kLaterDefectVertex * kVector3Components,
+              &kSignalingNanBits, sizeof(kSignalingNanBits));
+  const std::array<std::uint32_t, kTriangleCornerCount> corners{0, 1, 2};
+  const MeshMaterializationInput input{
+      std::span<const double>(positions), TriangleTopologyInput{corners}, {}};
+  const auto captured =
+      MaterializeMesh(input, CaptureLimits(), CaptureWork(), execution);
+  Require(captured.mesh.has_value(), "delayed-prefix source capture failed");
+  const auto retained_bytes = execution.ActiveTrackedPayload();
+  auto work = CaptureWork();
+  work.parallel_min_bytes = kSourceParallelThreshold;
+  work.partition_bytes = kTwoVertexPartitionBytes;
+  DelayEarlierWorker delayed;
+  allocation::TestHooks hooks;
+  hooks.workers = {DelayEarlierWorker::Launch, DelayEarlierWorker::Join,
+                   &delayed};
+  const auto selected =
+      allocation::TestSelectMeshFaces(*captured.mesh, {}, CaptureLimits(), work,
+                                      delayed.stop.get_token(), hooks);
+  Require(selected.status == MaterializationStatus::kInvalidSourceStorage &&
+              selected.diagnostic.storage_issue.has_value() &&
+              selected.diagnostic.storage_issue->code ==
+                  StorageIssueCode::kPositionNonfinite &&
+              selected.diagnostic.storage_issue->element == 0 &&
+              selected.execution.launched_workers == kWorkerBudget &&
+              selected.execution.joined_workers == kWorkerBudget &&
+              delayed.later_completed.load(std::memory_order_acquire),
+          "a canceled earlier partition changed the first source diagnostic");
+  Require(
+      execution.ActiveTrackedPayload() == retained_bytes &&
+          execution.ActiveWorkers() == 0,
+      "diagnostic prefix finalization retained new requests or worker slots");
+}
 }  // namespace
 int main() {
   try {
@@ -354,6 +445,7 @@ int main() {
     BackendExceptionCase();
     AuthoredEmptyCase();
     SourceDefectPrecedenceCase();
+    CanceledEarlierPrefixCase();
     std::cout << "Materialization request and typed capture checks passed\n";
   } catch (const std::exception& error) {
     std::cerr << error.what() << '\n';

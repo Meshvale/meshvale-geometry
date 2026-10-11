@@ -261,6 +261,10 @@ struct WorkSession {
   std::stop_token stop;
   MaterializationExecutionStats& stats;
   const TestHooks& hooks;
+  mutable bool completing_source_failure = false;
+  void SourceCheckpoint() const {
+    if (!completing_source_failure) allocation.Checkpoint();
+  }
   void Run(std::size_t count, std::size_t scalar_bytes,
            RangeOperation operation, void* state) const {
     RunRange(context, allocation, work, count, scalar_bytes, operation, state,
@@ -572,12 +576,38 @@ void ScanRange(const WorkSession& session, std::size_t count,
         &job);
   } catch (const AdmissionFailure& failure) {
     if (!output.first_only || failure.Code() != AdmissionCode::kCanceled) throw;
-    // RunRange has joined and checked all actual runtime failures. A source
-    // defect already observed by a leaf precedes later cooperative
-    // cancellation.
-    retain_first();
-    if (!output.first) throw;
-    return;
+    // RunRange has joined and checked all actual runtime failures. A known
+    // defect fixes failure status, but canceled earlier rows cannot be assumed
+    // valid. Finish only the required source prefix without allocating or
+    // launching again, preserving the first source-order diagnostic.
+    std::size_t known_block = 0;
+    while (known_block < blocks.size() && !blocks[known_block].first)
+      ++known_block;
+    if (known_block == blocks.size()) throw;
+    const auto quotient = count / jobs;
+    const auto remainder = count % jobs;
+    const auto prefix_end =
+        (known_block + 1) * quotient + std::min(known_block + 1, remainder);
+    struct SourceCompletion {
+      const WorkSession& session;
+      explicit SourceCompletion(const WorkSession& session) : session(session) {
+        session.completing_source_failure = true;
+      }
+      ~SourceCompletion() { session.completing_source_failure = false; }
+    } completing(session);
+    auto& prefix = blocks.front();
+    prefix.first.reset();
+    IssueSink sink{prefix, total, output.maximum, true};
+    for (std::size_t row = 0; row < prefix_end; ++row) {
+      check(state, row, row + 1, sink);
+      if (prefix.first) {
+        output.first = prefix.first;
+        return;
+      }
+    }
+    // Immutable deterministic checks must reproduce the known defect. Retain
+    // cancellation if a private caller violates that prerequisite.
+    throw;
   }
   retain_first();
   if (output.first_only) return;
@@ -624,7 +654,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
             UINT64_C(0x7ff0000000000000);
         for (auto i = begin; i < end; ++i) {
           if ((i - begin) % job.session.work.cancellation_block_scalars == 0)
-            job.session.allocation.Checkpoint();
+            job.session.SourceCheckpoint();
           for (int component = 0; component < kVector3Components; ++component) {
             std::uint64_t bits;
             std::memcpy(&bits,
@@ -655,7 +685,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
           auto& job = *static_cast<MeshCheck*>(argument);
           for (auto i = begin; i < end; ++i) {
             if ((i - begin) % job.session.work.cancellation_block_scalars == 0)
-              job.session.allocation.Checkpoint();
+              job.session.SourceCheckpoint();
             const auto value = job.mesh.face_offsets[i];
             if (value > job.mesh.corner_vertices.size())
               sink.Add(StorageIssueCode::kFaceOffsetRange, {}, i);
@@ -678,7 +708,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
         const auto vertices = job.mesh.positions.size() / kVector3Components;
         for (auto i = begin; i < end; ++i) {
           if ((i - begin) % job.session.work.cancellation_block_scalars == 0)
-            job.session.allocation.Checkpoint();
+            job.session.SourceCheckpoint();
           if (job.mesh.corner_vertices[i] >= vertices)
             sink.Add(StorageIssueCode::kCornerVertexRange, {}, i);
         }
@@ -760,7 +790,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
               for (auto i = begin; i < end; ++i) {
                 if ((i - begin) % job.session.work.cancellation_block_scalars ==
                     0)
-                  job.session.allocation.Checkpoint();
+                  job.session.SourceCheckpoint();
                 if (offsets[i] > job.scalar_count)
                   sink.Add(StorageIssueCode::kAttributeOffsetRange, job.ordinal,
                            i);
@@ -796,7 +826,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
             for (auto i = begin; i < end; ++i) {
               if ((i - begin) % job.session.work.cancellation_block_scalars ==
                   0)
-                job.session.allocation.Checkpoint();
+                job.session.SourceCheckpoint();
               if (present[i] > 1)
                 sink.Add(StorageIssueCode::kAttributePresenceValue, job.ordinal,
                          i);
@@ -822,7 +852,7 @@ ScanOutput InspectStorage(const WorkSession& session, MeshReadView mesh,
           const auto& job = *static_cast<MetadataCheck*>(argument);
           for (auto i = begin; i < end; ++i) {
             if ((i - begin) % job.session.work.cancellation_block_scalars == 0)
-              job.session.allocation.Checkpoint();
+              job.session.SourceCheckpoint();
             if (job.flags[i] != 0)
               sink.Add(StorageIssueCode::kMetadataDuplicateKey, job.ordinal, i);
           }

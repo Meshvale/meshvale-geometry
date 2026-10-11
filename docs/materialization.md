@@ -230,7 +230,11 @@ within bounded long loops and after final joins before publication. An earlier
 configuration or source-validation failure remains that failure. Deterministic
 worker failure slots choose the first source-order failure, independently of
 scheduling; actual runtime exceptions take precedence over cooperative worker
-cancellation.
+cancellation. If cancellation arrives after a first-only leaf has discovered a
+source defect, all workers join before the necessary earlier source prefix is
+finished without allocating. This diagnostic finalization preserves the first
+source-order issue and returns invalid source storage. It does not resume
+capture or selection, or publish a successful output after cancellation.
 
 Moved-from execution contexts retain the existing execution interface's
 `EditorError(kInvalidObject)` behavior when the context is used. Actual runtime
