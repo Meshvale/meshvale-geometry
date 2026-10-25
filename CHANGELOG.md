@@ -7,6 +7,11 @@
 
 ## Unreleased
 
+### Documentation
+
+- Select the [source-version profile](docs/versioning.md) for tagged and
+  Git-free builds; its extended implementation and qualification are pending.
+
 ### Changed
 
 - Generalize fixed-width numerical storage to `VectorBuffer<T, N>` for float/double
