@@ -112,6 +112,37 @@ class Probe:
     def metadata(self, source, text):
         (source / "PKG-INFO").write_bytes(text.encode("utf-8"))
 
+    def archive_dates(self):
+        keys = ("GIT_AUTHOR_DATE", "GIT_COMMITTER_DATE")
+        previous = {key: self.environment.get(key) for key in keys}
+        try:
+            for name, date in (("utc", "2026-01-02T03:04:05+00:00"),
+                               ("positive-offset", "2026-01-02T08:34:05+05:30"),
+                               ("negative-offset", "2026-01-01T20:04:05-07:00")):
+                for key in keys:
+                    self.environment[key] = date
+                source = self.repository(f"date-{name}-repository")
+                archive = self.archive(source, f"date-{name}-archive")
+                self.case(f"{name}-development-archive", archive,
+                          provenance="archive-development")
+                if name == "utc":
+                    utc_marker = (archive / ".git_archival.txt").read_text(encoding="utf-8")
+                    self.git(source, "tag", "v1.2.3")
+                    stable = self.archive(source, "date-utc-stable-archive")
+                    self.case("utc-stable-archive", stable, "1.2.3", "archive-release")
+            invalid = self.source("invalid-date-archive")
+            invalid_marker = "\n".join(
+                "node-date: 2026-01-02T03:04:05Q" if line.startswith("node-date: ") else line
+                for line in utc_marker.splitlines()) + "\n"
+            (invalid / ".git_archival.txt").write_text(invalid_marker, encoding="utf-8")
+            self.case("invalid-archive-zone", invalid, failure="malformed archival node-date")
+        finally:
+            for key, value in previous.items():
+                if value is None:
+                    self.environment.pop(key, None)
+                else:
+                    self.environment[key] = value
+
     def punctuation_tags(self):
         for punctuation, tag in (("comma", "v1.2.3,extra"), ("semicolon", "v1.2.3;extra"),
                                  ("dollar", "v1.2.3$extra"), ("format-text", "v1.2.3$Format")):
@@ -139,6 +170,7 @@ class Probe:
             self.case(f"describe-shaped-{name}-archive", archive, version)
 
     def exercise(self):
+        self.archive_dates()
         self.punctuation_tags()
         self.describe_shaped_tags()
         raw = self.source("raw space 雪")
