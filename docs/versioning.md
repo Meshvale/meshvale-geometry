@@ -3,12 +3,12 @@
 | Field | Value |
 |---|---|
 | ID | GEOMETRY-SOURCE-VERSION-001 |
-| Version | 0.1.0 |
-| Status | Selected development profile; implementation and qualification pending |
+| Version | 0.1.1 |
+| Status | Implemented development profile; release qualification separate |
 | Owner | MeshvaleGeometry source/build/package identity |
 
-MeshvaleGeometry resolves one native version for its CMake package and compiled version
-observations. Untagged development uses `0.0.0`. Python's complete SCM/package version
+MeshvaleGeometry resolves one native version for its CMake project and installed
+CMake package. Untagged development uses `0.0.0`. Python's complete SCM/package version
 remains a separate value; a dev/local string never becomes its stable numeric
 prefix. The source rules below apply to this product independently of any outer
 project or build directory.
@@ -118,3 +118,16 @@ requirements remain owned by [CMakeLists.txt](../CMakeLists.txt) and Python buil
 installation metadata by [pyproject.toml](../pyproject.toml). Runtime compatibility,
 supported dependency combinations and released artifacts require their own tested
 declarations.
+
+## Check source metadata
+
+With standard-library Python, Git and CMake 3.24 or newer available, run
+[the source metadata probe](../scripts/check-source-version.py):
+
+```sh
+python scripts/check-source-version.py
+```
+
+The probe creates original temporary repositories and configures metadata
+without a C++ compiler. These checks cover source identity; native binaries,
+Python backend builds and supported release combinations need separate checks.

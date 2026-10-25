@@ -36,7 +36,7 @@ def inspect(path):
         with tarfile.open(path, "r:gz") as archive:
             members = archive.getmembers()
         names = []
-        allowed = {".clang-format","CMakeLists.txt","pyproject.toml","README.md","AGENTS.md","ENVIRONMENT.md",
+        allowed = {".clang-format",".git_archival.txt",".gitattributes","CMakeLists.txt","pyproject.toml","README.md","AGENTS.md","ENVIRONMENT.md",
                    "environment.example.json","LICENSE","NOTICE","CHANGELOG.md","PKG-INFO"}
         directories = {"cmake","include","src","python","docs","examples","tests","licenses"}
         for member in members:
@@ -45,11 +45,14 @@ def inspect(path):
             assert not PurePosixPath(member.name).is_absolute() and ".." not in parts and len(parts) >= 2, member.name
             name = "/".join(parts[1:]); names.append(name)
             assert name in allowed or parts[1] in directories or name in {
-                "scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py","scripts/check-native-tests.py","scripts/run-numeric-request-observation.py"}, name
+                "scripts/check-source-version.py","scripts/check-package.py","scripts/test-installed.py","scripts/check-docs.py","scripts/check-portability.py","scripts/check-cpp-format.py","scripts/check-native-tests.py","scripts/run-numeric-request-observation.py"}, name
             assert not any(part in {".local",".scratch","__pycache__","references","build",".github"} for part in parts), name
             assert not name.endswith((".pyc",".pyd",".so",".obj",".log")), name
         assert "python/meshvale_geometry/_version.py" in names
         assert ".clang-format" in names
+        for name in [".git_archival.txt", ".gitattributes", "cmake/SourceVersion.cmake",
+                     "docs/versioning.md", "scripts/check-source-version.py"]:
+            assert name in names, name
         assert "scripts/check-cpp-format.py" in names
         assert "python/bindings.cpp" in names
         for name in ["python/snapshot.h", "python/snapshot.cpp",

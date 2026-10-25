@@ -28,8 +28,9 @@ channels retain their raw encodings and missingness. See the
 
 **Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, exact native/Python polygon triangulation, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Further operations, format adapters, stable interfaces and released packages are forthcoming.
 
-The selected [source-version profile](docs/versioning.md) defines build identity
-for tagged and Git-free sources. Its extended archive implementation is pending.
+The [source-version profile](docs/versioning.md) preserves one native identity
+for tagged checkouts, tagged archives and source packages named for this product.
+Python's full build version must agree with the matching source identity.
 
 See [the storage contract and native build instructions](docs/attributes.md), [topology inspection contract](docs/topology.md), [Python buffer records and installation](docs/python.md), [report envelopes and reference validation](docs/reports.md), [installed native consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
 

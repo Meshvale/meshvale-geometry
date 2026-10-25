@@ -1,19 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 cmake_minimum_required(VERSION 3.24)
-project(MeshvaleGeometry LANGUAGES CXX)
+include(cmake/SourceVersion.cmake)
+meshvale_geometry_resolve_source_version(MESHVALE_GEOMETRY_VERSION
+  MESHVALE_GEOMETRY_VERSION_PROVENANCE "${CMAKE_CURRENT_SOURCE_DIR}")
+project(MeshvaleGeometry VERSION "${MESHVALE_GEOMETRY_VERSION}" LANGUAGES CXX)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Exact release tags own released versions; untagged builds are development snapshots.
-find_package(Git QUIET)
-set(MESHVALE_GEOMETRY_VERSION "0.0.0")
-if(Git_FOUND)
-  execute_process(COMMAND "${GIT_EXECUTABLE}" describe --tags --exact-match --dirty
-    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-    OUTPUT_VARIABLE meshvale_tag OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-  if(meshvale_tag MATCHES "^v([0-9]+\\.[0-9]+\\.[0-9]+)$")
-    set(MESHVALE_GEOMETRY_VERSION "${CMAKE_MATCH_1}")
-  endif()
-endif()
 
 include(cmake/MeshvaleEigen.cmake)
 add_library(meshvale_geometry STATIC src/attributes.cpp src/mesh.cpp src/topology.cpp src/vector_buffer.cpp src/scalar_buffer.cpp)
