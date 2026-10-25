@@ -28,6 +28,10 @@ channels retain their raw encodings and missingness. See the
 
 **Status:** Development C++20 library with raw polygon storage, extensible attributes, scoped topology inspection, a native pooled editor, exact native/Python polygon triangulation, installed CMake targets, optional Python snapshots and a declarative workflow report contract. Further operations, format adapters, stable interfaces and released packages are forthcoming.
 
+The [source-version profile](docs/versioning.md) preserves one native identity
+for tagged checkouts, tagged archives and source packages named for this product.
+Python's full build version must agree with the matching source identity.
+
 See [the storage contract and native build instructions](docs/attributes.md), [topology inspection contract](docs/topology.md), [Python buffer records and installation](docs/python.md), [report envelopes and reference validation](docs/reports.md), [installed native consumer](examples/consumer/CMakeLists.txt), and [changelog](CHANGELOG.md).
 
 Topology inspection retains every edge occurrence, detects disconnected vertex fans, reports existing winding conflicts and classifies boundary graphs. It returns an owned snapshot and explicit check coverage, including blocked malformed topology and unsupported geometric/solid checks. Non-manifold input is retained; inspection does not normalize or repair it.

@@ -7,6 +7,17 @@
 
 ## Unreleased
 
+### Documentation
+
+- Document the implemented [source-version profile](docs/versioning.md) and its
+  compiler-free metadata checks. Release/runtime qualification remains separate.
+
+### Fixed
+
+- Resolve the CMake project and installed CMake package version from one
+  checked source identity, including tagged archives and source packages.
+  Cross-check a matching Python build's full version against that identity.
+
 ### Changed
 
 - Generalize fixed-width numerical storage to `VectorBuffer<T, N>` for float/double
