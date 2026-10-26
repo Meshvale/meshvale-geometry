@@ -13,6 +13,10 @@ COMMON_TESTS = frozenset({"attribute_storage", "polygon_topology", "pooled_editi
 QUALIFIED_TESTS = frozenset({"charged_materialization", "materialization_semantics",
     "materialization_accounting_workers", "materialization_fault_workers"})
 UNSUPPORTED_TESTS = frozenset({"unsupported_materialization_profile"})
+CHARGED_QUALIFIED_TESTS = frozenset({"charged_polygon_triangulation",
+    "charged_triangulation_accounting", "charged_triangulation_fraction_oracle"})
+CHARGED_UNSUPPORTED_TESTS = frozenset({"unsupported_charged_triangulation"})
+CHARGED_INSTALLED_TESTS = frozenset({"installed_charged_triangulation_consumer"})
 QUALIFIED_INSTALLED_TESTS = frozenset({"installed_materialization_consumer"})
 UNSUPPORTED_INSTALLED_TESTS = frozenset({"installed_unsupported_materialization_profile"})
 ALLOCATION_TESTS = frozenset({"execution_allocation_failure",
@@ -87,6 +91,7 @@ def validate_compiler(build_dir, expected_id, expected_version):
 def expected_inventory(profile, probe):
     expected = set(COMMON_TESTS)
     expected.update(QUALIFIED_TESTS if profile == "qualified" else UNSUPPORTED_TESTS)
+    expected.update(CHARGED_QUALIFIED_TESTS if profile == "qualified" else CHARGED_UNSUPPORTED_TESTS)
     if probe == "enabled":
         expected.update(ALLOCATION_TESTS)
     return expected
@@ -105,6 +110,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build-dir", type=Path, required=True)
     parser.add_argument("--installed-build-dir", type=Path)
+    parser.add_argument("--charged-installed-build-dir", type=Path)
     parser.add_argument("--configuration", default="Release")
     parser.add_argument("--compiler-id", choices=("MSVC", "Clang", "GNU", "AppleClang"), required=True)
     parser.add_argument("--compiler-version")
@@ -127,11 +133,22 @@ def main():
                                   else UNSUPPORTED_INSTALLED_TESTS)
             installed_names = validate_inventory(args.installed_build_dir, args.configuration,
                                                  installed_expected)
+        charged_installed_names = None
+        if args.charged_installed_build_dir:
+            validate_compiler(args.charged_installed_build_dir, args.compiler_id, args.compiler_version)
+            charged_cache = cache_entries(args.charged_installed_build_dir / "CMakeCache.txt")
+            validate_configuration(charged_cache, args.configuration)
+            if cache_value(charged_cache, "MESHVALE_CHARGED_EXPECTED_PROFILE", "STRING") != args.materialization_profile:
+                raise ValueError("charged consumer expected profile differs from actual producer profile")
+            charged_installed_names = validate_inventory(args.charged_installed_build_dir,
+                args.configuration, CHARGED_INSTALLED_TESTS)
     except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
         parser.error(str(error))
     print(f"Native test inventory passed: {len(names)} suites; materialization "
           f"{args.materialization_profile}; allocation probe {args.allocation_probe}; "
           f"configuration {args.configuration}; {names}")
+    if charged_installed_names is not None:
+        print(f"Installed charged-triangulation inventory passed: {charged_installed_names}")
     if installed_names is not None:
         print(f"Installed materialization inventory passed: {installed_names}")
 

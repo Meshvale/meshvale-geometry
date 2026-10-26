@@ -25,3 +25,19 @@ python scripts/check-docs.py
 For C++ formatting, use an isolated tool environment with `clang-format==23.1.3`, then run `python scripts/check-cpp-format.py`. The check covers Git-visible project `.h`, `.hpp` and `.cpp` files and uses the repository's Google/C++20 configuration. Pass `--formatter` when the executable is outside the current PATH; machine-specific locations stay in ignored configuration. Formatting is checked independently of semantic/native tests and remaining public naming migration.
 
 Public files use repository-relative links, public URLs, tool names, and symbolic environment values. Run these checks before committing or publishing. The portability check scans working files and staged content for machine paths and private local files; it does not scan all secrets or determine whether a document should be public. Review public content and package contents separately.
+
+## Charged triangulation candidate checks
+
+The [new native module](docs/charged-triangulation.md) adds three qualified suites
+or one genuine unsupported-profile suite. The exact full native requirements are
+19/16 qualified and 14/11 unsupported with the existing allocation probe enabled/
+disabled. These are inventory requirements, not claims of executed qualification.
+The accounting suite keeps backend/worker controls in both probe modes; ordinary
+replacement-new interception is enabled only by the existing probe option.
+
+Configure the [standalone installed consumer](examples/charged-triangulation-consumer/CMakeLists.txt)
+with `MESHVALE_CHARGED_EXPECTED_PROFILE` matching the actual producer profile.
+`check-native-tests.py --charged-installed-build-dir <consumer-build>` checks its
+compiler/configuration/profile and exact one-test inventory in addition to the
+full producer inventory. No new default profile, toolchain or support floor is
+selected. Current headers and libraries must come from the same producer build.

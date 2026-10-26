@@ -85,3 +85,8 @@ Use this repository's issues for reproducible problems and feature requests. Fol
 ## License
 
 Original material is licensed under [Apache-2.0](LICENSE). See [NOTICE](NOTICE) for attribution; third-party material retains its own terms.
+
+[Charged immutable triangulation](docs/charged-triangulation.md) is a development
+source candidate for both legacy and retained mesh callers. It adds an inspected
+mesh/maps owner with actual request accounting; qualification is pending. It does
+not add a Python binding or destination conversion/publication policy.

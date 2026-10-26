@@ -142,3 +142,7 @@ interior overlap, authored boundary winding and every channel/map. Applicable
 CI sanitizer jobs run these targets. Platform/package claims require actual
 checks for that build; conversion does not establish destination float32 or
 format publication guarantees.
+
+The separate [charged immutable conversion](charged-triangulation.md) is a
+development source candidate with retained storage/maps and actual request caps.
+Its qualification is pending; this legacy interface and its metric stay unchanged.

@@ -271,7 +271,7 @@ Eigen's allocator nor the installed interface.
 
 Original numerical request observation is a serial prerequisite. It does not
 establish TSan factory or worker acceptance. The separate mandatory matching
-TSan gate retains all 13 native suites with ordinary replacement-new allocation
+TSan gate requires all 16 native suites with ordinary replacement-new allocation
 probes disabled, including substantive materialization workers, cancellation,
 partial launch, shared budgets, concurrency and retained ownership. An
 unsupported-profile suite cannot replace that gate.
@@ -316,3 +316,8 @@ outside that lock.
 This interface establishes complete charged storage and selection. File formats,
 source encoding provenance, charged repair candidates/reports, skinning,
 animation, edited re-embedding and Python bindings require their own interfaces.
+
+The separate [charged triangulation candidate](charged-triangulation.md) consumes
+these retained meshes directly and returns complete inspected output and maps.
+It preserves ordered metadata instead of adapting through the legacy map. Native
+and delivery qualification are pending; this storage contract is unchanged.
