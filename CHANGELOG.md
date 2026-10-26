@@ -7,6 +7,11 @@
 
 ## Unreleased
 
+- Add a development source candidate for charged immutable native triangulation,
+  complete typed channels/maps and actual per-operation request accounting.
+  Native/package/installed/CI qualification remains pending; legacy behavior and
+  Python/destination policies remain unchanged.
+
 ### Documentation
 
 - Document the implemented [source-version profile](docs/versioning.md) and its

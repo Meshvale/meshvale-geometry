@@ -91,6 +91,8 @@ def inspect(path):
                      "examples/execution-consumer/CMakeLists.txt",
                      "examples/execution-consumer/main.cpp"]:
             assert name in names, name
+        for name in ['include/meshvale/geometry/charged_triangulation.h', 'src/charged_triangulation.cpp', 'src/charged_triangulation_internal.h', 'src/triangulation_numeric.h', 'src/triangulation_internal.h', 'tests/charged_triangulation.cpp', 'tests/charged_triangulation_allocation.cpp', 'tests/charged_triangulation_fixture.h', 'tests/charged_triangulation_fixture_driver.cpp', 'tests/test_charged_triangulation_oracle.py', 'examples/charged-triangulation-consumer/CMakeLists.txt', 'examples/charged-triangulation-consumer/main.cpp', 'docs/charged-triangulation.md']:
+            assert name in names, name
         assert "python/meshvale_reports/report-v1.schema.json" in names
         for name in ["include/meshvale/geometry/materialization.h",
                      "src/mesh_materialization.cpp",

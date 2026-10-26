@@ -190,6 +190,24 @@ jobs:
           ${{ matrix.compiler_version != '' && format('--compiler-version {0}', matrix.compiler_version) || '' }}
       - name: Test installed materialization profile consumer
         run: ctest --test-dir .local/materialization-consumer -C ${{ matrix.build_type }} --output-on-failure
+      - name: Configure installed charged triangulation consumer
+        run: >-
+          cmake -S examples/charged-triangulation-consumer -B .local/charged-consumer
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.compiler_option }}
+          "-DCMAKE_PREFIX_PATH=${{ github.workspace }}/.local/install"
+          -DMESHVALE_CHARGED_EXPECTED_PROFILE=${{ matrix.materialization_profile }}
+      - name: Build installed charged triangulation consumer
+        run: cmake --build .local/charged-consumer --config ${{ matrix.build_type }} --parallel 2
+      - name: Require installed charged triangulation inventory
+        run: >-
+          python scripts/check-native-tests.py --build-dir .local/build
+          --charged-installed-build-dir .local/charged-consumer
+          --configuration ${{ matrix.build_type }}
+          --materialization-profile ${{ matrix.materialization_profile }} --allocation-probe ${{ matrix.allocation_probe }}
+          --compiler-id ${{ matrix.compiler_id }}
+          ${{ matrix.compiler_version != '' && format('--compiler-version {0}', matrix.compiler_version) || '' }}
+      - name: Test installed charged triangulation consumer
+        run: ctest --test-dir .local/charged-consumer -C ${{ matrix.build_type }} --output-on-failure
       - name: Retain exact native profile artifacts including failures
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
