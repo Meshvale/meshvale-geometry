@@ -77,8 +77,8 @@ An unqualified producer using the default qualified suite is expected to fail.
 `MESHVALE_GEOMETRY_ALLOCATION_PROBE=OFF` disables the three ordinary
 replacement-new fault suites when the runtime is incompatible with those probes,
 such as TSan. It does not disable the substantive materialization worker suites.
-The exact inventories are qualified 16 (13 without probes) and unsupported 13
-(10 without probes). Verify the configured inventory before execution:
+The exact full native inventories are qualified 19 (16 without probes) and
+unsupported 14 (11 without probes). Verify the configured inventory before execution:
 
 ```sh
 python scripts/check-native-tests.py --build-dir .local/build --configuration Release --materialization-profile qualified --allocation-probe enabled --compiler-id MSVC

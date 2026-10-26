@@ -317,7 +317,8 @@ This interface establishes complete charged storage and selection. File formats,
 source encoding provenance, charged repair candidates/reports, skinning,
 animation, edited re-embedding and Python bindings require their own interfaces.
 
-The separate [charged triangulation candidate](charged-triangulation.md) consumes
-these retained meshes directly and returns complete inspected output and maps.
-It preserves ordered metadata instead of adapting through the legacy map. Native
-and delivery qualification are pending; this storage contract is unchanged.
+The implemented [charged triangulation interface](charged-triangulation.md)
+consumes these retained meshes directly and returns complete inspected output and
+maps. It preserves ordered metadata instead of adapting through the legacy map.
+Its declared development qualification is documented by that module; this storage
+contract is unchanged.

@@ -1,8 +1,8 @@
 # Charged immutable polygon triangulation
 
-Version: 0.1.0. Status: development source candidate; native, package, installed
-and applicable CI qualification are pending. This page specifies this candidate,
-and does not establish a supported platform, stable ABI or released package.
+Version: 0.1.0. Status: implemented development C++20 interface, qualified within
+the declared and tested development configurations. This does not establish a
+supported platform floor, stable ABI or released SDK/package.
 
 The C++20 [header](../include/meshvale/geometry/charged_triangulation.h) and compiled
 `meshvale::charged_triangulation` target provide two typed `TriangulateCharged`
@@ -190,7 +190,21 @@ and independent rational geometry through public output. Existing ordinary-new
 interception follows the existing allocation-probe option; backend/accounting
 controls remain substantive when that interception is disabled.
 
-Source implementation and these requirements do not themselves establish actual
-native/package/relocated/sanitizer/hosted success. Stable compatibility, supported
-release/floor, destination loss/conversion and complete common-format workflows
-remain separate gates.
+The applicable PR and main-branch [repository checks](../.github/workflows/repository-checks.yml)
+passed for the declared configurations. Qualified producers exercise successful
+operations; unsupported producers retain the tested rejection and empty-storage
+behavior. A test selector does not enable nonempty capture on an unsupported
+producer.
+
+A separate Windows x64/MSVC 19.51 Release/MD development cohort passed 19 native
+tests, 12 baseline/current legacy comparisons, a twice-included public header and
+a relocated installed consumer. A genuine Git source archive of the
+[feature commit](https://github.com/Meshvale/meshvale-geometry/commit/5dd210b19d05bf651b853b8fdac398c7feceeba9),
+whose product tree matches the merged implementation, passed its own 19-test
+native run. Its coherent SDK contained 13 public headers and six static libraries
+in 33 files; a copied public consumer passed after byte-exact SDK relocation.
+These results cover the tested development configurations and matching producers.
+
+Stable compatibility, supported release/floor, destination loss/conversion and
+complete common-format workflows remain separate gates. This module has no
+Python binding and does not encode destination formats.
